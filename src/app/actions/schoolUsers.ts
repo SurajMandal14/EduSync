@@ -209,55 +209,77 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         }
     }
 
-    const updateData: Partial<User> = {
+    const setOperation: Partial<User> = {
       name,
       email,
       role,
-      classId: (classId && classId.trim() !== "" && ObjectId.isValid(classId)) ? classId.trim() : undefined,
       updatedAt: new Date(),
     };
+    
+    // Using a separate object for $unset operation
+    const unsetOperation: any = {};
 
-    if (role === 'student') {
-        updateData.admissionId = admissionId && admissionId.trim() !== "" ? admissionId.trim() : undefined;
-        updateData.busRouteLocation = enableBusTransport && busRouteLocation && busRouteLocation.trim() !== "" ? busRouteLocation.trim() : undefined;
-        updateData.busClassCategory = enableBusTransport && busClassCategory && busClassCategory.trim() !== "" ? busClassCategory.trim() : undefined;
-        if (!enableBusTransport) {
-            updateData.busRouteLocation = undefined;
-            updateData.busClassCategory = undefined;
-        }
-        updateData.fatherName = fatherName;
-        updateData.motherName = motherName;
-        updateData.dob = dob;
-        updateData.section = section;
-        updateData.rollNo = rollNo;
-        updateData.examNo = examNo;
-        updateData.aadharNo = aadharNo;
-    } else { // It's a teacher, clear student-specific fields
-        updateData.admissionId = undefined;
-        updateData.busRouteLocation = undefined;
-        updateData.busClassCategory = undefined;
-        updateData.fatherName = undefined;
-        updateData.motherName = undefined;
-        updateData.dob = undefined;
-        updateData.section = undefined;
-        updateData.rollNo = undefined;
-        updateData.examNo = undefined;
-        updateData.aadharNo = undefined;
-    }
-
+    // Handle password update
     if (password && password.trim() !== "") {
       if (password.length < 6) {
          return { success: false, message: 'Validation failed', error: 'New password must be at least 6 characters.' };
       }
-      updateData.password = await bcrypt.hash(password, 10);
+      setOperation.password = await bcrypt.hash(password, 10);
     }
     
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { _id, createdAt, ...setOperationData } = updateData;
+    // Handle classId
+    if (classId && classId.trim() !== "" && ObjectId.isValid(classId)) {
+        setOperation.classId = classId.trim();
+    } else {
+        unsetOperation.classId = "";
+    }
+
+    // Handle role-specific fields
+    if (role === 'student') {
+        setOperation.admissionId = admissionId;
+        setOperation.fatherName = fatherName;
+        setOperation.motherName = motherName;
+        setOperation.dob = dob;
+        setOperation.section = section;
+        setOperation.rollNo = rollNo;
+        setOperation.examNo = examNo;
+        setOperation.aadharNo = aadharNo;
+        
+        if (enableBusTransport && busRouteLocation && busClassCategory) {
+            setOperation.busRouteLocation = busRouteLocation;
+            setOperation.busClassCategory = busClassCategory;
+        } else {
+            unsetOperation.busRouteLocation = "";
+            unsetOperation.busClassCategory = "";
+        }
+    } else { // It's a teacher, so clear all student-specific fields
+        unsetOperation.admissionId = "";
+        unsetOperation.busRouteLocation = "";
+        unsetOperation.busClassCategory = "";
+        unsetOperation.fatherName = "";
+        unsetOperation.motherName = "";
+        unsetOperation.dob = "";
+        unsetOperation.section = "";
+        unsetOperation.rollNo = "";
+        unsetOperation.examNo = "";
+        unsetOperation.aadharNo = "";
+    }
+    
+    const updateQuery: any = {};
+    if (Object.keys(setOperation).length > 0) {
+        updateQuery.$set = setOperation;
+    }
+    if (Object.keys(unsetOperation).length > 0) {
+        updateQuery.$unset = unsetOperation;
+    }
+
+    if (Object.keys(updateQuery).length === 0) {
+        return { success: true, message: 'No changes detected to update.' };
+    }
 
     const result = await usersCollection.updateOne(
       { _id: new ObjectId(userId) as any, schoolId: new ObjectId(schoolId) as any },
-      { $set: setOperationData }
+      updateQuery
     );
 
     if (result.matchedCount === 0) {

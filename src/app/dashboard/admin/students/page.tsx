@@ -38,10 +38,9 @@ import {
     type CreateSchoolUserServerActionFormData
 } from '@/types/user';
 import { getSchoolById } from "@/app/actions/schools";
-import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; // Updated import
+import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import type { User as AppUser } from "@/types/user";
 import type { School, TermFee } from "@/types/school";
-// SchoolClass is not directly used here, but its structure is relevant for options
 import { useEffect, useState, useCallback } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
@@ -61,13 +60,16 @@ export default function AdminStudentManagementPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null); 
-  const [classOptions, setClassOptions] = useState<ClassOption[]>([]); // For dropdown
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [allSchoolStudents, setAllSchoolStudents] = useState<SchoolStudent[]>([]);
+  
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [isSubmittingStudent, setIsSubmittingStudent] = useState(false);
-  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  
   const [editingStudent, setEditingStudent] = useState<SchoolStudent | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  
   const [studentToDelete, setStudentToDelete] = useState<SchoolStudent | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -78,7 +80,7 @@ export default function AdminStudentManagementPage() {
   const [selectedBusLocations, setSelectedBusLocations] = useState<string[]>([]);
   const [availableBusClassCategories, setAvailableBusClassCategories] = useState<string[]>([]);
 
-  const studentForm = useForm<CreateStudentFormData>({
+  const form = useForm<CreateStudentFormData>({
     resolver: zodResolver(createStudentFormSchema),
     defaultValues: { 
         name: "", email: "", password: "", admissionId: "", classId: "", 
@@ -145,7 +147,7 @@ export default function AdminStudentManagementPage() {
 
       setClassOptions(classesOptionsResult);
       if (classesOptionsResult.length === 0) {
-         toast({ variant: "info", title: "No Classes", description: "No classes found. Please create classes first in Class Management." });
+         toast({ variant: "info", title: "No Classes", description: "No classes found. Please create classes in Class Management first." });
       }
 
     } catch (error) {
@@ -164,12 +166,12 @@ export default function AdminStudentManagementPage() {
     return terms.reduce((sum, term) => sum + (term.amount || 0), 0);
   }, []);
   
-  const selectedClassIdForTuition = studentForm.watch("classId");
+  const selectedClassIdForTuition = form.watch("classId");
   useEffect(() => {
     setNoTuitionFeeStructureFound(false);
     if (selectedClassIdForTuition && selectedClassIdForTuition !== NONE_CLASS_VALUE && schoolDetails?.tuitionFees && classOptions.length > 0) {
       const selectedClassOption = classOptions.find(cls => cls.value === selectedClassIdForTuition);
-      if (selectedClassOption && selectedClassOption.name) { // selectedClassOption.name is the actual class name (e.g. Grade 10)
+      if (selectedClassOption && selectedClassOption.name) {
         const feeConfig = schoolDetails.tuitionFees.find(tf => tf.className === selectedClassOption.name);
         if (feeConfig?.terms) {
           setCalculatedTuitionFee(calculateAnnualFeeFromTerms(feeConfig.terms));
@@ -185,9 +187,9 @@ export default function AdminStudentManagementPage() {
     }
   }, [selectedClassIdForTuition, schoolDetails, classOptions, calculateAnnualFeeFromTerms]);
 
-  const studentFormEnableBus = studentForm.watch("enableBusTransport");
-  const studentFormBusLocation = studentForm.watch("busRouteLocation");
-  const studentFormBusCategory = studentForm.watch("busClassCategory");
+  const studentFormEnableBus = form.watch("enableBusTransport");
+  const studentFormBusLocation = form.watch("busRouteLocation");
+  const studentFormBusCategory = form.watch("busClassCategory");
 
   useEffect(() => {
     if (studentFormEnableBus && studentFormBusLocation && schoolDetails?.busFeeStructures) {
@@ -196,17 +198,17 @@ export default function AdminStudentManagementPage() {
         .map(bfs => bfs.classCategory)
         .filter(Boolean) as string[];
       setAvailableBusClassCategories(Array.from(new Set(categories)));
-      if (!categories.includes(studentForm.getValues("busClassCategory"))) {
-        studentForm.setValue("busClassCategory", ""); 
+      if (!categories.includes(form.getValues("busClassCategory"))) {
+        form.setValue("busClassCategory", ""); 
       }
     } else {
       setAvailableBusClassCategories([]);
       if (!studentFormEnableBus) { 
-         studentForm.setValue("busRouteLocation", "");
+         form.setValue("busRouteLocation", "");
       }
-      studentForm.setValue("busClassCategory", "");
+      form.setValue("busClassCategory", "");
     }
-  }, [studentFormEnableBus, studentFormBusLocation, schoolDetails, studentForm]);
+  }, [studentFormEnableBus, studentFormBusLocation, schoolDetails, form]);
 
   useEffect(() => {
     setNoBusFeeStructureFound(false);
@@ -225,24 +227,11 @@ export default function AdminStudentManagementPage() {
     }
   }, [studentFormEnableBus, studentFormBusLocation, studentFormBusCategory, schoolDetails, calculateAnnualFeeFromTerms]);
 
-  const handleClassChangeForStudentForm = (classIdValue: string) => {
-    studentForm.setValue('classId', classIdValue === NONE_CLASS_VALUE ? "" : classIdValue);
+  const handleClassChange = (classIdValue: string, isEditForm: boolean) => {
+    const targetForm = isEditForm ? editForm : form;
+    targetForm.setValue('classId', classIdValue === NONE_CLASS_VALUE ? "" : classIdValue);
     const selectedClass = classOptions.find(opt => opt.value === classIdValue);
-    if (selectedClass && selectedClass.section) {
-      studentForm.setValue('section', selectedClass.section);
-    } else if (classIdValue === NONE_CLASS_VALUE) {
-      studentForm.setValue('section', '');
-    }
-  };
-
-  const handleClassChangeForEditForm = (classIdValue: string) => {
-    editForm.setValue('classId', classIdValue === NONE_CLASS_VALUE ? "" : classIdValue);
-    const selectedClass = classOptions.find(opt => opt.value === classIdValue);
-    if (selectedClass && selectedClass.section) {
-      editForm.setValue('section', selectedClass.section);
-    } else if (classIdValue === NONE_CLASS_VALUE) {
-       editForm.setValue('section', ''); // Clear section if "-- None --" is chosen
-    }
+    targetForm.setValue('section', selectedClass?.section || '');
   };
 
 
@@ -260,24 +249,19 @@ export default function AdminStudentManagementPage() {
         busClassCategory: editingStudent.busClassCategory || "",
         fatherName: editingStudent.fatherName || "",
         motherName: editingStudent.motherName || "",
-        dob: editingStudent.dob || "",
+        dob: editingStudent.dob ? format(new Date(editingStudent.dob), 'yyyy-MM-dd') : "",
         section: editingStudent.section || "",
         rollNo: editingStudent.rollNo || "",
         examNo: editingStudent.examNo || "",
         aadharNo: editingStudent.aadharNo || "",
       });
-    } else {
-      editForm.reset({ 
-        name: "", email: "", password: "", role: 'student', classId: "", admissionId: "", 
-        enableBusTransport: false, busRouteLocation: "", busClassCategory:"",
-        fatherName: "", motherName: "", dob: "", section: "", rollNo: "", examNo: "", aadharNo: ""
-      });
+      setShowAddForm(false);
     }
   }, [editingStudent, editForm]);
 
   async function handleStudentSubmit(values: CreateStudentFormData) {
     if (!authUser?.schoolId) return;
-    setIsSubmittingStudent(true);
+    setIsSubmitting(true);
     const payload: CreateSchoolUserServerActionFormData = { 
         ...values, 
         role: 'student', 
@@ -286,14 +270,15 @@ export default function AdminStudentManagementPage() {
         busClassCategory: values.enableBusTransport ? values.busClassCategory : undefined,
     };
     const result = await createSchoolUser(payload, authUser.schoolId.toString());
-    setIsSubmittingStudent(false);
+    setIsSubmitting(false);
     if (result.success) {
       toast({ title: "Student Created", description: result.message });
-      studentForm.reset();
+      form.reset();
       setCalculatedTuitionFee(null);
       setNoTuitionFeeStructureFound(false);
       setCalculatedBusFee(null);
       setNoBusFeeStructureFound(false);
+      setShowAddForm(false);
       fetchInitialData(); 
     } else {
       toast({ variant: "destructive", title: "Creation Failed", description: result.error || result.message });
@@ -302,16 +287,9 @@ export default function AdminStudentManagementPage() {
   
   async function handleEditSubmit(values: UpdateSchoolUserFormData) {
     if (!authUser?.schoolId || !editingStudent?._id) return;
-    setIsSubmittingEdit(true);
-    const payload = { 
-      ...values, 
-      role: 'student' as 'student', 
-      classId: values.classId === NONE_CLASS_VALUE ? "" : values.classId, 
-      busRouteLocation: values.enableBusTransport ? values.busRouteLocation : undefined,
-      busClassCategory: values.enableBusTransport ? values.busClassCategory : undefined,
-    };
-    const result = await updateSchoolUser(editingStudent._id.toString(), authUser.schoolId.toString(), payload);
-    setIsSubmittingEdit(false);
+    setIsSubmitting(true);
+    const result = await updateSchoolUser(editingStudent._id.toString(), authUser.schoolId.toString(), values);
+    setIsSubmitting(false);
     if (result.success) {
       toast({ title: "Student Updated", description: result.message });
       setEditingStudent(null);
@@ -343,13 +321,23 @@ export default function AdminStudentManagementPage() {
     Object.values(user).some(val => String(val).toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const totalAnnualFee = (calculatedTuitionFee || 0) + (studentForm.getValues("enableBusTransport") && calculatedBusFee ? (calculatedBusFee || 0) : 0);
+  const totalAnnualFee = (calculatedTuitionFee || 0) + (form.getValues("enableBusTransport") && calculatedBusFee ? (calculatedBusFee || 0) : 0);
 
   const getClassNameFromId = (classId: string | undefined): string => {
     if (!classId) return 'N/A';
     const foundClass = classOptions.find(cls => cls.value === classId);
     return foundClass?.label || 'N/A (Invalid ID)';
   };
+
+  const openAddForm = () => {
+    setEditingStudent(null);
+    setShowAddForm(true);
+  }
+
+  const cancelAddForm = () => {
+    setShowAddForm(false);
+    form.reset();
+  }
 
   if (!authUser && !isLoadingData) { 
     return (
@@ -372,8 +360,14 @@ export default function AdminStudentManagementPage() {
           </CardDescription>
         </CardHeader>
       </Card>
+      
+      {!editingStudent && !showAddForm && (
+        <Button onClick={openAddForm}>
+          <UserPlus className="mr-2 h-4 w-4" /> Add New Student
+        </Button>
+      )}
 
-      {editingStudent ? (
+      {editingStudent && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center"><Edit3 className="mr-2 h-5 w-5"/>Edit Student: {editingStudent.name}</CardTitle>
@@ -381,17 +375,18 @@ export default function AdminStudentManagementPage() {
           <CardContent>
             <Form {...editForm}>
               <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="space-y-6">
+                {/* Edit Form Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField control={editForm.control} name="name" render={({ field }) => (
-                      <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} disabled={isSubmittingEdit} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="email" render={({ field }) => (
-                      <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} disabled={isSubmittingEdit} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="password" render={({ field }) => (
                       <FormItem>
                         <FormLabel>New Password</FormLabel>
-                        <FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmittingEdit} /></FormControl>
+                        <FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} /></FormControl>
                         <FormDescription className="text-xs">Leave blank to keep current password.</FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -399,18 +394,18 @@ export default function AdminStudentManagementPage() {
                   <FormField control={editForm.control} name="admissionId" render={({ field }) => (
                       <FormItem>
                           <FormLabel className="flex items-center"><SquarePen className="mr-2 h-4 w-4"/>Admission ID</FormLabel>
-                          <FormControl><Input {...field} disabled={isSubmittingEdit} /></FormControl>
+                          <FormControl><Input {...field} disabled={isSubmitting} /></FormControl>
                           <FormMessage />
                       </FormItem>
                   )}/>
                   <FormField control={editForm.control} name="fatherName" render={({ field }) => (
-                      <FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input {...field} disabled={isSubmittingEdit}/></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="motherName" render={({ field }) => (
-                      <FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input {...field} disabled={isSubmittingEdit}/></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                   )}/>
                     <FormField control={editForm.control} name="dob" render={({ field }) => (
-                      <FormItem><FormLabel className="flex items-center"><CalendarIcon className="mr-2 h-4 w-4"/>Date of Birth</FormLabel><FormControl><Input type="date" {...field} disabled={isSubmittingEdit}/></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel className="flex items-center"><CalendarIcon className="mr-2 h-4 w-4"/>Date of Birth</FormLabel><FormControl><Input type="date" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                   )}/>
                    <FormField 
                       control={editForm.control} 
@@ -419,9 +414,9 @@ export default function AdminStudentManagementPage() {
                           <FormItem>
                               <FormLabel>Assign to Class</FormLabel>
                               <Select 
-                                  onValueChange={(value) => handleClassChangeForEditForm(value)} // Use specific handler
+                                  onValueChange={(value) => handleClassChange(value, true)}
                                   value={field.value || ""} 
-                                  disabled={isSubmittingEdit || classOptions.length === 0}
+                                  disabled={isSubmitting || classOptions.length === 0}
                               >
                                   <FormControl><SelectTrigger>
                                       <SelectValue placeholder={classOptions.length > 0 ? "Select class" : "No classes available"} />
@@ -433,22 +428,21 @@ export default function AdminStudentManagementPage() {
                                       ))}
                                   </SelectContent>
                               </Select>
-                              {classOptions.length === 0 && <FormDescription className="text-xs">No classes created yet. Please create classes in Class Management first.</FormDescription>}
                               <FormMessage />
                           </FormItem>
                       )}
                   />
                   <FormField control={editForm.control} name="section" render={({ field }) => (
-                      <FormItem><FormLabel>Section</FormLabel><FormControl><Input placeholder="Auto from class" {...field} disabled={isSubmittingEdit} readOnly={!!editForm.getValues("classId")} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Section</FormLabel><FormControl><Input placeholder="Auto from class" {...field} disabled readOnly /></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="rollNo" render={({ field }) => (
-                      <FormItem><FormLabel>Roll Number</FormLabel><FormControl><Input {...field} disabled={isSubmittingEdit}/></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Roll Number</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="examNo" render={({ field }) => (
-                      <FormItem><FormLabel>Exam Number</FormLabel><FormControl><Input {...field} disabled={isSubmittingEdit}/></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Exam Number</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="aadharNo" render={({ field }) => (
-                      <FormItem><FormLabel>Aadhar Number</FormLabel><FormControl><Input {...field} disabled={isSubmittingEdit}/></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Aadhar Number</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField
                       control={editForm.control}
@@ -459,7 +453,7 @@ export default function AdminStudentManagementPage() {
                                   <FormLabel>Enable Bus Transportation</FormLabel>
                                   <FormDescription>Assign bus fees based on location and category.</FormDescription>
                               </div>
-                              <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSubmittingEdit} /></FormControl>
+                              <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting} /></FormControl>
                           </FormItem>
                       )}
                   />
@@ -468,7 +462,7 @@ export default function AdminStudentManagementPage() {
                           <FormField control={editForm.control} name="busRouteLocation" render={({ field }) => (
                               <FormItem>
                                   <FormLabel>Bus Location/Route</FormLabel>
-                                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingEdit || selectedBusLocations.length === 0}>
+                                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || selectedBusLocations.length === 0}>
                                       <FormControl><SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger></FormControl>
                                       <SelectContent>
                                           {selectedBusLocations.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
@@ -480,7 +474,7 @@ export default function AdminStudentManagementPage() {
                           <FormField control={editForm.control} name="busClassCategory" render={({ field }) => (
                               <FormItem>
                                   <FormLabel>Bus Class Category</FormLabel>
-                                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingEdit || availableBusClassCategories.length === 0}>
+                                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || availableBusClassCategories.length === 0}>
                                       <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                                       <SelectContent>
                                             {schoolDetails?.busFeeStructures?.filter(bfs => bfs.location === editForm.getValues("busRouteLocation")).map(bfs => bfs.classCategory).filter((value, index, self) => self.indexOf(value) === index && value).map(cat => <SelectItem key={cat} value={cat!}>{cat!}</SelectItem>)}
@@ -493,34 +487,37 @@ export default function AdminStudentManagementPage() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit" disabled={isSubmittingEdit || isLoadingData}>
-                    {isSubmittingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
+                  <Button type="submit" disabled={isSubmitting || isLoadingData}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
                     Update Student
                   </Button>
-                  <Button type="button" variant="outline" onClick={cancelEdit} disabled={isSubmittingEdit}><XCircle className="mr-2 h-4 w-4" />Cancel</Button>
+                  <Button type="button" variant="outline" onClick={cancelEdit} disabled={isSubmitting}><XCircle className="mr-2 h-4 w-4" />Cancel</Button>
                 </div>
               </form>
             </Form>
           </CardContent>
         </Card>
-      ) : (
+      )}
+      
+      {showAddForm && !editingStudent && (
         <Card>
             <CardHeader><CardTitle className="flex items-center"><UserPlus className="mr-2 h-5 w-5"/>Add New Student</CardTitle></CardHeader>
             <CardContent>
-            <Form {...studentForm}>
-                <form onSubmit={studentForm.handleSubmit(handleStudentSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField control={studentForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., John Doe" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={studentForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="student@example.com" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={studentForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={studentForm.control} name="admissionId" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><SquarePen className="mr-2 h-4 w-4"/>Admission ID</FormLabel><FormControl><Input placeholder="e.g., S1001" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={studentForm.control} name="classId" render={({ field }) => ( 
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleStudentSubmit)} className="space-y-6">
+                 {/* Add Form Fields */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., John Doe" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="student@example.com" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="password" render={({ field }) => (<FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="admissionId" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><SquarePen className="mr-2 h-4 w-4"/>Admission ID</FormLabel><FormControl><Input placeholder="e.g., S1001" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="classId" render={({ field }) => ( 
                         <FormItem>
                             <FormLabel>Assign to Class</FormLabel>
                             <Select 
-                                onValueChange={(value) => handleClassChangeForStudentForm(value)} // Use specific handler
+                                onValueChange={(value) => handleClassChange(value, false)}
                                 value={field.value || ""} 
-                                disabled={isSubmittingStudent || classOptions.length === 0}
+                                disabled={isSubmitting || classOptions.length === 0}
                             >
                                 <FormControl><SelectTrigger>
                                     <SelectValue placeholder={classOptions.length > 0 ? "Select class" : "No classes available"} />
@@ -540,32 +537,32 @@ export default function AdminStudentManagementPage() {
                             <FormMessage/>
                         </FormItem>
                     )}/>
-                    <FormField control={studentForm.control} name="fatherName" render={({ field }) => (
-                        <FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input placeholder="e.g., Robert Doe" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>
+                    <FormField control={form.control} name="fatherName" render={({ field }) => (
+                        <FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input placeholder="e.g., Robert Doe" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={studentForm.control} name="motherName" render={({ field }) => (
-                        <FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input placeholder="e.g., Maria Doe" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>
+                    <FormField control={form.control} name="motherName" render={({ field }) => (
+                        <FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input placeholder="e.g., Maria Doe" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
-                        <FormField control={studentForm.control} name="dob" render={({ field }) => (
-                        <FormItem><FormLabel className="flex items-center"><CalendarIcon className="mr-2 h-4 w-4"/>Date of Birth</FormLabel><FormControl><Input type="date" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>
+                        <FormField control={form.control} name="dob" render={({ field }) => (
+                        <FormItem><FormLabel className="flex items-center"><CalendarIcon className="mr-2 h-4 w-4"/>Date of Birth</FormLabel><FormControl><Input type="date" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={studentForm.control} name="section" render={({ field }) => (
-                        <FormItem><FormLabel>Section</FormLabel><FormControl><Input placeholder="Auto from class" {...field} disabled={isSubmittingStudent} readOnly={!!studentForm.getValues("classId")} /></FormControl><FormMessage /></FormItem>
+                    <FormField control={form.control} name="section" render={({ field }) => (
+                        <FormItem><FormLabel>Section</FormLabel><FormControl><Input placeholder="Auto from class" {...field} disabled readOnly /></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={studentForm.control} name="rollNo" render={({ field }) => (
-                        <FormItem><FormLabel>Roll Number</FormLabel><FormControl><Input placeholder="e.g., 101" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>
+                    <FormField control={form.control} name="rollNo" render={({ field }) => (
+                        <FormItem><FormLabel>Roll Number</FormLabel><FormControl><Input placeholder="e.g., 101" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={studentForm.control} name="examNo" render={({ field }) => (
-                        <FormItem><FormLabel>Exam Number (Optional)</FormLabel><FormControl><Input {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>
+                    <FormField control={form.control} name="examNo" render={({ field }) => (
+                        <FormItem><FormLabel>Exam Number (Optional)</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={studentForm.control} name="aadharNo" render={({ field }) => (
-                        <FormItem><FormLabel>Aadhar Number (Optional)</FormLabel><FormControl><Input placeholder="123456789012" {...field} disabled={isSubmittingStudent}/></FormControl><FormMessage /></FormItem>
+                    <FormField control={form.control} name="aadharNo" render={({ field }) => (
+                        <FormItem><FormLabel>Aadhar Number (Optional)</FormLabel><FormControl><Input placeholder="123456789012" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
                     
                     <div className="md:col-span-2" />
 
                     <FormField
-                        control={studentForm.control}
+                        control={form.control}
                         name="enableBusTransport"
                         render={({ field }) => (
                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm md:col-span-2">
@@ -573,16 +570,16 @@ export default function AdminStudentManagementPage() {
                                     <FormLabel>Enable Bus Transportation</FormLabel>
                                     <FormDescription>Assign bus fees based on location and category.</FormDescription>
                                 </div>
-                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSubmittingStudent} /></FormControl>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting} /></FormControl>
                             </FormItem>
                         )}
                     />
-                    {studentForm.watch("enableBusTransport") && (
+                    {form.watch("enableBusTransport") && (
                         <>
-                            <FormField control={studentForm.control} name="busRouteLocation" render={({ field }) => (
+                            <FormField control={form.control} name="busRouteLocation" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Bus Location/Route</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingStudent || selectedBusLocations.length === 0}>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || selectedBusLocations.length === 0}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             {selectedBusLocations.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
@@ -591,10 +588,10 @@ export default function AdminStudentManagementPage() {
                                     <FormMessage />
                                 </FormItem>
                             )}/>
-                            <FormField control={studentForm.control} name="busClassCategory" render={({ field }) => (
+                            <FormField control={form.control} name="busClassCategory" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Bus Class Category</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingStudent || availableBusClassCategories.length === 0}>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || availableBusClassCategories.length === 0}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             {availableBusClassCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
@@ -611,7 +608,7 @@ export default function AdminStudentManagementPage() {
                             )}/>
                         </>
                     )}
-                        {(calculatedTuitionFee !== null || (studentForm.watch("enableBusTransport") && calculatedBusFee !== null)) && (
+                        {(calculatedTuitionFee !== null || (form.watch("enableBusTransport") && calculatedBusFee !== null)) && (
                         <div className="md:col-span-2 mt-2 p-3 border rounded-md bg-muted/50">
                             <h4 className="font-medium text-sm mb-1">Estimated Total Annual Fee:</h4>
                             <p className="text-lg font-semibold">
@@ -619,16 +616,21 @@ export default function AdminStudentManagementPage() {
                             </p>
                             <p className="text-xs text-muted-foreground">
                                 (Annual Tuition: <span className="font-sans">₹</span>{(calculatedTuitionFee || 0).toLocaleString()})
-                                {studentForm.watch("enableBusTransport") && calculatedBusFee !== null && 
+                                {form.watch("enableBusTransport") && calculatedBusFee !== null && 
                                     ` + (Annual Bus Fee: ₹${(calculatedBusFee || 0).toLocaleString()})`}
                             </p>
-                            {(noTuitionFeeStructureFound || (studentForm.watch("enableBusTransport") && noBusFeeStructureFound)) &&
+                            {(noTuitionFeeStructureFound || (form.watch("enableBusTransport") && noBusFeeStructureFound)) &&
                                 <p className="text-xs text-destructive mt-1">Note: One or more fee structures were not found. The total fee may be incomplete.</p>
                             }
                         </div>
                     )}
                 </div>
-                <Button type="submit" className="w-full md:w-auto" disabled={isSubmittingStudent || isLoadingData}>{isSubmittingStudent ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}Add Student</Button>
+                <div className="flex gap-2">
+                    <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || isLoadingData}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}Add Student</Button>
+                    <Button type="button" variant="outline" onClick={cancelAddForm} disabled={isSubmitting}>
+                        <XCircle className="mr-2 h-4 w-4" /> Cancel
+                    </Button>
+                </div>
                 </form>
             </Form>
             </CardContent>
@@ -661,9 +663,9 @@ export default function AdminStudentManagementPage() {
                   <TableCell>{student.busRouteLocation ? `${student.busRouteLocation} (${student.busClassCategory || 'N/A'})` : 'N/A'}</TableCell>
                   <TableCell>{student.createdAt ? format(new Date(student.createdAt as string), "PP") : 'N/A'}</TableCell>
                   <TableCell className="space-x-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(student)} disabled={isSubmittingStudent || isSubmittingEdit || isDeleting}><Edit3 className="h-4 w-4" /></Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(student)} disabled={isSubmitting || isDeleting}><Edit3 className="h-4 w-4" /></Button>
                     <AlertDialog open={studentToDelete?._id === student._id} onOpenChange={(open) => !open && setStudentToDelete(null)}>
-                      <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteClick(student)} disabled={isSubmittingStudent || isSubmittingEdit || isDeleting}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                      <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteClick(student)} disabled={isSubmitting || isDeleting}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                       {studentToDelete && studentToDelete._id === student._id && (
                         <AlertDialogContent>
                           <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle>
