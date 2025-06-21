@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Layers as ScholrIcon, UserCircle, LogOut, Menu, Settings, Users, DollarSign, CheckSquare, LayoutDashboard, BookUser, ShieldAlert, User as UserIcon, BookCopy, TicketPercent, BarChart2, Briefcase, Award } from "lucide-react"; // Added Award
+import { Layers as ScholrIcon, UserCircle, LogOut, Menu, Settings, Users, DollarSign, CheckSquare, LayoutDashboard, BookUser, ShieldAlert, User as UserIcon, BookCopy, TicketPercent, BarChart2, Briefcase, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, useCallback } from "react";
 import type { AuthUser } from "@/types/user";
 import { getSchoolById } from "@/app/actions/schools";
+import { ThemeToggle } from "./ThemeToggle";
 
 const navLinksBase = {
   superadmin: [
@@ -47,7 +48,7 @@ const navLinksBase = {
     { href: "/dashboard/student", label: "Student Dashboard", icon: LayoutDashboard },
     { href: "/dashboard/student/fees", label: "My Fees", icon: DollarSign },
     { href: "/dashboard/student/attendance", label: "My Attendance", icon: CheckSquare },
-    { href: "/dashboard/student/results", label: "Exam Results", icon: Award }, // Changed icon to Award
+    { href: "/dashboard/student/results", label: "Exam Results", icon: Award },
     { href: "/dashboard/student/profile", label: "My Profile", icon: BookUser },
   ],
 };
@@ -252,6 +253,7 @@ export function Header() {
             </nav>
 
             <div className="flex items-center gap-2 md:gap-4">
+              <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
