@@ -66,7 +66,7 @@ export const busFeeLocationCategorySchema = z.object({
 export const schoolFormSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
   schoolLogoUrl: z.string().url({ message: "Please enter a valid URL for the school logo." }).optional().or(z.literal('')),
-  tuitionFees: z.array(classTuitionFeeSchema).min(1, "At least one class tuition configuration is required."),
+  tuitionFees: z.array(classTuitionFeeSchema),
   busFeeStructures: z.array(busFeeLocationCategorySchema).optional(),
   reportCardTemplate: z.custom<ReportCardTemplateKey>((val) => {
     return typeof val === 'string' && Object.keys(REPORT_CARD_TEMPLATES).includes(val);
@@ -75,4 +75,3 @@ export const schoolFormSchema = z.object({
 });
 
 export type SchoolFormData = z.infer<typeof schoolFormSchema>;
-

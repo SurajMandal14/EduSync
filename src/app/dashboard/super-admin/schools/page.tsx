@@ -319,11 +319,9 @@ export default function SchoolManagementPage() {
                                 </FormItem>
                                 )}
                             />
-                            {tuitionFeeFields.length > 1 && (
-                                <Button type="button" variant="ghost" size="icon" onClick={() => removeTuitionFee(classIndex)} className="mt-6 text-destructive hover:bg-destructive/10" disabled={isSubmitting}>
-                                    <Trash2 className="h-5 w-5" />
-                                </Button>
-                            )}
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeTuitionFee(classIndex)} className="mt-6 text-destructive hover:bg-destructive/10" disabled={isSubmitting}>
+                                <Trash2 className="h-5 w-5" />
+                            </Button>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -410,11 +408,9 @@ export default function SchoolManagementPage() {
                                     )}
                                 />
                             </div>
-                            {busFeeFields.length > 1 && (
-                                <Button type="button" variant="ghost" size="icon" onClick={() => removeBusFee(busIndex)} className="mt-6 text-destructive hover:bg-destructive/10" disabled={isSubmitting}>
-                                    <Trash2 className="h-5 w-5" />
-                                </Button>
-                            )}
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeBusFee(busIndex)} className="mt-6 text-destructive hover:bg-destructive/10" disabled={isSubmitting}>
+                                <Trash2 className="h-5 w-5" />
+                            </Button>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
