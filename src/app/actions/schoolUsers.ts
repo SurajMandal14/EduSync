@@ -83,6 +83,8 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
     }
 
     revalidatePath('/dashboard/admin/users');
+    revalidatePath('/dashboard/admin/students');
+    revalidatePath('/dashboard/admin/teachers');
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _p, ...userWithoutPassword } = newUser;
@@ -179,7 +181,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     const { 
         name, email, password, role, classId, admissionId, 
         enableBusTransport, busRouteLocation, busClassCategory,
-        fatherName, motherName, dob, section, rollNo, examNo, aadharNo // New fields
+        fatherName, motherName, dob, section, rollNo, examNo, aadharNo
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -207,46 +209,41 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         }
     }
 
-    const updateData: Partial<Omit<User, '_id' | 'role' | 'createdAt'>> & { role?: UserRole; updatedAt: Date } = {
+    const updateData: Partial<User> = {
       name,
       email,
+      role,
       classId: (classId && classId.trim() !== "" && ObjectId.isValid(classId)) ? classId.trim() : undefined,
       updatedAt: new Date(),
     };
 
-    if (role && (role === 'teacher' || role === 'student')) {
-        updateData.role = role; // Role shouldn't change, but schema expects it
-        if (role === 'student') {
-            updateData.admissionId = admissionId && admissionId.trim() !== "" ? admissionId.trim() : undefined;
-            updateData.busRouteLocation = enableBusTransport && busRouteLocation && busRouteLocation.trim() !== "" ? busRouteLocation.trim() : undefined;
-            updateData.busClassCategory = enableBusTransport && busClassCategory && busClassCategory.trim() !== "" ? busClassCategory.trim() : undefined;
-             if (!enableBusTransport) { 
-                updateData.busRouteLocation = undefined;
-                updateData.busClassCategory = undefined;
-            }
-            // Update new student fields
-            updateData.fatherName = fatherName;
-            updateData.motherName = motherName;
-            updateData.dob = dob;
-            updateData.section = section;
-            updateData.rollNo = rollNo;
-            updateData.examNo = examNo;
-            updateData.aadharNo = aadharNo;
-        } else { 
-            updateData.admissionId = undefined;
+    if (role === 'student') {
+        updateData.admissionId = admissionId && admissionId.trim() !== "" ? admissionId.trim() : undefined;
+        updateData.busRouteLocation = enableBusTransport && busRouteLocation && busRouteLocation.trim() !== "" ? busRouteLocation.trim() : undefined;
+        updateData.busClassCategory = enableBusTransport && busClassCategory && busClassCategory.trim() !== "" ? busClassCategory.trim() : undefined;
+        if (!enableBusTransport) {
             updateData.busRouteLocation = undefined;
             updateData.busClassCategory = undefined;
-            // Clear student-specific fields for teachers
-            updateData.fatherName = undefined;
-            updateData.motherName = undefined;
-            updateData.dob = undefined;
-            updateData.section = undefined;
-            updateData.rollNo = undefined;
-            updateData.examNo = undefined;
-            updateData.aadharNo = undefined;
         }
+        updateData.fatherName = fatherName;
+        updateData.motherName = motherName;
+        updateData.dob = dob;
+        updateData.section = section;
+        updateData.rollNo = rollNo;
+        updateData.examNo = examNo;
+        updateData.aadharNo = aadharNo;
+    } else { // It's a teacher, clear student-specific fields
+        updateData.admissionId = undefined;
+        updateData.busRouteLocation = undefined;
+        updateData.busClassCategory = undefined;
+        updateData.fatherName = undefined;
+        updateData.motherName = undefined;
+        updateData.dob = undefined;
+        updateData.section = undefined;
+        updateData.rollNo = undefined;
+        updateData.examNo = undefined;
+        updateData.aadharNo = undefined;
     }
-
 
     if (password && password.trim() !== "") {
       if (password.length < 6) {
@@ -254,10 +251,13 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
       }
       updateData.password = await bcrypt.hash(password, 10);
     }
+    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _id, createdAt, ...setOperationData } = updateData;
 
     const result = await usersCollection.updateOne(
       { _id: new ObjectId(userId) as any, schoolId: new ObjectId(schoolId) as any },
-      { $set: updateData }
+      { $set: setOperationData }
     );
 
     if (result.matchedCount === 0) {
@@ -265,6 +265,8 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     }
 
     revalidatePath('/dashboard/admin/users');
+    revalidatePath('/dashboard/admin/students');
+    revalidatePath('/dashboard/admin/teachers');
 
     const updatedUserDoc = await usersCollection.findOne({ _id: new ObjectId(userId) as any });
     if (!updatedUserDoc) {
@@ -329,6 +331,8 @@ export async function deleteSchoolUser(userId: string, schoolId: string): Promis
     }
 
     revalidatePath('/dashboard/admin/users');
+    revalidatePath('/dashboard/admin/students');
+    revalidatePath('/dashboard/admin/teachers');
     return { success: true, message: 'User deleted successfully!' };
 
   } catch (error) {
@@ -514,4 +518,3 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     return { success: false, error: errorMessage, message: 'Failed to fetch student details for report card.' };
   }
 }
-

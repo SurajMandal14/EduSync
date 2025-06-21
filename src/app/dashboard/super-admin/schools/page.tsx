@@ -19,8 +19,19 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { createSchool, getSchools, updateSchool } from "@/app/actions/schools";
+import { createSchool, getSchools, updateSchool, deleteSchool } from "@/app/actions/schools";
 import { schoolFormSchema, type SchoolFormData, REPORT_CARD_TEMPLATES, type ReportCardTemplateKey, type TermFee, type BusFeeLocationCategory } from '@/types/school'; 
 import type { School as SchoolType } from "@/types/school";
 import { useEffect, useState, useCallback } from "react";
@@ -37,6 +48,8 @@ export default function SchoolManagementPage() {
   const [isLoadingSchools, setIsLoadingSchools] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingSchool, setEditingSchool] = useState<SchoolType | null>(null);
+  const [schoolToDelete, setSchoolToDelete] = useState<SchoolType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<SchoolFormData>({
     resolver: zodResolver(schoolFormSchema),
@@ -140,6 +153,20 @@ export default function SchoolManagementPage() {
       });
     }
   }
+
+  const handleConfirmDelete = async () => {
+    if (!schoolToDelete) return;
+    setIsDeleting(true);
+    const result = await deleteSchool(schoolToDelete._id);
+    if (result.success) {
+      toast({ title: "School Deleted", description: result.message });
+      fetchSchools();
+    } else {
+      toast({ variant: "destructive", title: "Deletion Failed", description: result.error || result.message });
+    }
+    setIsDeleting(false);
+    setSchoolToDelete(null);
+  };
   
   const termNames: TermFee['term'][] = ['Term 1', 'Term 2', 'Term 3'];
 
@@ -469,9 +496,36 @@ export default function SchoolManagementPage() {
                   <p className="text-xs text-muted-foreground">Created: {new Date(school.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => handleEdit(school)} className="w-full sm:w-auto flex-shrink-0">
-                <Edit className="mr-2 h-4 w-4" /> Edit
-              </Button> 
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleEdit(school)} className="w-full sm:w-auto flex-shrink-0">
+                  <Edit className="mr-2 h-4 w-4" /> Edit
+                </Button>
+                <AlertDialog open={schoolToDelete?._id === school._id} onOpenChange={(open) => !open && setSchoolToDelete(null)}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" onClick={() => setSchoolToDelete(school)} className="w-full sm:w-auto flex-shrink-0">
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    {schoolToDelete && schoolToDelete._id === school._id && (
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the <strong>{school.schoolName}</strong> school profile.
+                                <br/><br/>
+                                <strong className="text-destructive">Note:</strong> Deletion will fail if there are any users (admins, teachers, students) still associated with this school.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setSchoolToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete School
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                    )}
+                </AlertDialog>
+              </div>
             </Card>
           ))
           ) : (

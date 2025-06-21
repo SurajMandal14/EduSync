@@ -657,7 +657,7 @@ export default function AdminStudentManagementPage() {
                   <TableCell>{student.name}</TableCell>
                   <TableCell>{student.email}</TableCell>
                   <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                  <TableCell>{getClassNameFromId(student.classId)} {student.section ? ` - ${student.section}` : ''}</TableCell>
+                  <TableCell>{getClassNameFromId(student.classId)}</TableCell>
                   <TableCell>{student.busRouteLocation ? `${student.busRouteLocation} (${student.busClassCategory || 'N/A'})` : 'N/A'}</TableCell>
                   <TableCell>{student.createdAt ? format(new Date(student.createdAt as string), "PP") : 'N/A'}</TableCell>
                   <TableCell className="space-x-1">

@@ -22,6 +22,7 @@ import { getSchoolUsers } from "@/app/actions/schoolUsers";
 import { getSchoolById } from "@/app/actions/schools";
 import { recordFeePayment, getFeePaymentsBySchool } from "@/app/actions/fees";
 import { getFeeConcessionsForSchool } from "@/app/actions/concessions"; // Import action for concessions
+import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; // For class options
 import { format } from "date-fns";
 
 // Helper to determine current academic year string (e.g., "2023-2024")
@@ -37,6 +38,13 @@ const getCurrentAcademicYear = (): string => {
   }
 };
 
+interface ClassOption {
+  value: string;
+  label: string;
+  name?: string;
+  section?: string;
+}
+
 interface StudentFeeDetailsProcessed extends AppUser {
   totalAnnualTuitionFee: number;
   paidAmount: number;
@@ -51,6 +59,7 @@ export default function FeeManagementPage() {
   const [allStudents, setAllStudents] = useState<AppUser[]>([]);
   const [allSchoolPayments, setAllSchoolPayments] = useState<FeePayment[]>([]);
   const [allSchoolConcessions, setAllSchoolConcessions] = useState<FeeConcession[]>([]); // State for concessions
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]); // State for class options
   
   const [studentFeeList, setStudentFeeList] = useState<StudentFeeDetailsProcessed[]>([]);
   
@@ -100,11 +109,12 @@ export default function FeeManagementPage() {
     }
     setIsLoading(true);
     try {
-      const [schoolResult, usersResult, paymentsResult, concessionsResult] = await Promise.all([
+      const [schoolResult, usersResult, paymentsResult, concessionsResult, classesResult] = await Promise.all([
         getSchoolById(authUser.schoolId.toString()),
         getSchoolUsers(authUser.schoolId.toString()),
         getFeePaymentsBySchool(authUser.schoolId.toString()),
-        getFeeConcessionsForSchool(authUser.schoolId.toString(), currentAcademicYear) // Fetch concessions
+        getFeeConcessionsForSchool(authUser.schoolId.toString(), currentAcademicYear), // Fetch concessions
+        getClassesForSchoolAsOptions(authUser.schoolId.toString())
       ]);
 
       if (schoolResult.success && schoolResult.school) {
@@ -112,6 +122,12 @@ export default function FeeManagementPage() {
       } else {
         toast({ variant: "destructive", title: "Error", description: schoolResult.message || "Failed to load school details." });
         setSchoolDetails(null);
+      }
+      
+      if (classesResult) {
+          setClassOptions(classesResult);
+      } else {
+          setClassOptions([]);
       }
 
       if (usersResult.success && usersResult.users) {
@@ -156,6 +172,7 @@ export default function FeeManagementPage() {
       setAllStudents([]);
       setAllSchoolPayments([]);
       setAllSchoolConcessions([]);
+      setClassOptions([]);
     }
   }, [authUser, fetchSchoolDataAndRelated]);
 
@@ -167,7 +184,11 @@ export default function FeeManagementPage() {
     }
 
     const processedList = allStudents.map(student => {
-      const totalAnnualTuitionFee = calculateAnnualTuitionFee(student.classId as string, schoolDetails);
+      const classOption = classOptions.find(c => c.value === student.classId);
+      const classNameForFeeCalc = classOption?.name; // Use the actual class name
+      const displayClassName = classOption?.label || student.classId || 'N/A'; // Use label for display
+      
+      const totalAnnualTuitionFee = calculateAnnualTuitionFee(classNameForFeeCalc, schoolDetails);
       const studentPayments = allSchoolPayments.filter(p => p.studentId.toString() === student._id.toString());
       const paidAmount = studentPayments.reduce((sum, p) => sum + p.amountPaid, 0);
       
@@ -180,20 +201,20 @@ export default function FeeManagementPage() {
 
       return {
         ...student,
-        className: student.classId as string,
+        className: displayClassName, // Use the display-friendly class name
         totalAnnualTuitionFee,
         paidAmount,
         totalConcessions, // Add total concessions
         dueAmount,
       };
     }) as StudentFeeDetailsProcessed[];
-    setStudentFeeList(processedList);
+    setStudentFeeList(processedList.sort((a,b) => (a.className || '').localeCompare(b.className || '') || a.name!.localeCompare(b.name!)));
 
-  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, currentAcademicYear]);
+  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, currentAcademicYear, classOptions]);
 
   useEffect(() => {
      processStudentFeeDetails();
-  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, processStudentFeeDetails]);
+  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, classOptions, processStudentFeeDetails]);
 
 
   const selectedStudentFullData = selectedStudentId ? studentFeeList.find(s => s._id.toString() === selectedStudentId) : null;
@@ -348,7 +369,7 @@ export default function FeeManagementPage() {
                 <SelectContent>
                   {allStudents.map(student => (
                     <SelectItem key={student._id.toString()} value={student._id.toString()}>
-                      {student.name} ({student.classId || 'N/A'})
+                      {student.name} ({classOptions.find(c => c.value === student.classId)?.label || 'N/A'})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -493,4 +514,3 @@ export default function FeeManagementPage() {
     </div>
   );
 }
-

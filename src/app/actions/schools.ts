@@ -7,6 +7,7 @@ import type { School, SchoolFormData, ReportCardTemplateKey, ClassTuitionFeeConf
 import { schoolFormSchema } from '@/types/school';
 import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
+import type { User } from '@/types/user';
 
 export interface CreateSchoolResult {
   success: boolean;
@@ -325,5 +326,49 @@ export async function setSchoolReportVisibility(schoolId: string, allowVisibilit
     console.error('Set school report visibility error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, message: 'An unexpected error occurred.', error: errorMessage };
+  }
+}
+
+export interface DeleteSchoolResult {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
+export async function deleteSchool(schoolId: string): Promise<DeleteSchoolResult> {
+  try {
+    if (!ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid School ID format.' };
+    }
+    const { db } = await connectToDatabase();
+    
+    // Check for associated users (admins, teachers, students)
+    const usersCollection = db.collection<User>('users');
+    const associatedUser = await usersCollection.findOne({ schoolId: new ObjectId(schoolId) as any });
+    if (associatedUser) {
+      return { 
+        success: false, 
+        message: 'Cannot delete school.',
+        error: `This school has associated users (e.g., ${associatedUser.name} - ${associatedUser.role}). Please reassign or delete them first.`
+      };
+    }
+
+    // Optional: Check for other dependencies like classes, fees, etc.
+    // For now, we are just checking users as a safeguard.
+
+    const schoolsCollection = db.collection<School>('schools');
+    const result = await schoolsCollection.deleteOne({ _id: new ObjectId(schoolId) as any });
+
+    if (result.deletedCount === 0) {
+      return { success: false, message: 'School not found or already deleted.', error: 'School not found.' };
+    }
+
+    revalidatePath('/dashboard/super-admin/schools');
+    return { success: true, message: 'School deleted successfully!' };
+
+  } catch (error) {
+    console.error('Delete school server action error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    return { success: false, message: 'An unexpected error occurred during school deletion.', error: errorMessage };
   }
 }
