@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { createSchoolClass, getSchoolClasses, updateSchoolClass, deleteSchoolClass } from "@/app/actions/classes";
@@ -57,6 +56,7 @@ export default function AdminClassManagementPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false); // State to toggle add form
   const [classToDelete, setClassToDelete] = useState<SchoolClass | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -143,6 +143,7 @@ export default function AdminClassManagementPage() {
 
   useEffect(() => {
     if (editingClass) {
+      setShowAddForm(false);
       form.reset({
         name: editingClass.name,
         section: editingClass.section || "",
@@ -152,10 +153,20 @@ export default function AdminClassManagementPage() {
           : [{ name: "", teacherId: "" }],
         secondLanguageSubjectName: editingClass.secondLanguageSubjectName || "",
       });
-    } else {
-      form.reset({ name: "", section: "", classTeacherId: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
     }
   }, [editingClass, form]);
+
+  const openAddForm = () => {
+    setEditingClass(null);
+    form.reset({ name: "", section: "", classTeacherId: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
+    setShowAddForm(true);
+  };
+
+  const closeAndResetForm = () => {
+    setShowAddForm(false);
+    setEditingClass(null);
+    form.reset();
+  };
 
   async function onSubmit(values: CreateClassFormData) {
     if (!authUser?.schoolId) return;
@@ -168,7 +179,7 @@ export default function AdminClassManagementPage() {
     setIsSubmitting(false);
     if (result.success) {
       toast({ title: editingClass ? "Class Updated" : "Class Created", description: result.message });
-      handleCancelEdit();
+      closeAndResetForm();
       fetchInitialData();
     } else {
       toast({ variant: "destructive", title: `Error ${editingClass ? "Updating" : "Creating"} Class`, description: result.error || result.message });
@@ -176,7 +187,6 @@ export default function AdminClassManagementPage() {
   }
 
   const handleEditClick = (cls: SchoolClass) => { setEditingClass(cls); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const handleCancelEdit = () => { setEditingClass(null); form.reset(); };
   const handleDeleteClick = (cls: SchoolClass) => setClassToDelete(cls);
 
   const handleConfirmDelete = async () => {
@@ -212,14 +222,21 @@ export default function AdminClassManagementPage() {
             <BookCopy className="mr-2 h-6 w-6" /> Class Management
           </CardTitle>
           <CardDescription>
-            {editingClass ? `Editing Class: ${classDisplayName(editingClass)}` : "Create and manage classes, assign class teachers, and define subjects with their respective teachers."}
+            Create and manage classes, assign class teachers, and define subjects with their respective teachers.
           </CardDescription>
         </CardHeader>
       </Card>
 
+      {!showAddForm && !editingClass && (
+        <Button onClick={openAddForm}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Add New Class
+        </Button>
+      )}
+
+      {(showAddForm || editingClass) && (
       <Card>
         <CardHeader>
-          <CardTitle>{editingClass ? "Edit Class" : "Add New Class"}</CardTitle>
+          <CardTitle>{editingClass ? `Edit Class: ${classDisplayName(editingClass)}` : "Add New Class"}</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -369,14 +386,13 @@ export default function AdminClassManagementPage() {
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                   {editingClass ? "Update Class" : "Create Class"}
                 </Button>
-                {editingClass && (
-                  <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={isSubmitting}><XCircle className="mr-2 h-4 w-4" />Cancel</Button>
-                )}
+                <Button type="button" variant="outline" onClick={closeAndResetForm} disabled={isSubmitting}><XCircle className="mr-2 h-4 w-4" />Cancel</Button>
               </div>
             </form>
           </Form>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -440,7 +456,7 @@ export default function AdminClassManagementPage() {
             <div className="text-center py-6">
                 <Info className="mx-auto h-10 w-10 text-muted-foreground" />
                 <p className="mt-3 text-muted-foreground">No classes found for this school.</p>
-                <p className="text-xs text-muted-foreground">Use the form above to create the first class. Ensure tuition fee structures are set by Super Admin.</p>
+                <p className="text-xs text-muted-foreground">Use the "Add New Class" button above to create the first class. Ensure tuition fee structures are set by Super Admin.</p>
             </div>
           )}
         </CardContent>
