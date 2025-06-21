@@ -1,10 +1,9 @@
-
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Building2, ShieldAccount, Settings, AreaChart, Loader2, BadgePercent } from "lucide-react";
+import { Building2, ShieldIcon, Settings, AreaChart, Loader2, BadgePercent } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSchoolsCount } from "@/app/actions/schools";
 import { getSchoolAdminsCount } from "@/app/actions/adminUsers";
@@ -90,7 +89,7 @@ export default function SuperAdminDashboardPage() {
         <StatCard 
             title="Total School Administrators" 
             value={adminCount} 
-            icon={ShieldAccount} 
+            icon={ShieldIcon} 
             isLoading={isLoadingAdmins}
             link="/dashboard/super-admin/users"
             linkText="Manage Admins"
@@ -113,7 +112,7 @@ export default function SuperAdminDashboardPage() {
 
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
-            <ShieldAccount className="h-10 w-10 text-primary mb-2" />
+            <ShieldIcon className="h-10 w-10 text-primary mb-2" />
             <CardTitle>User Management</CardTitle>
           </CardHeader>
           <CardContent>
