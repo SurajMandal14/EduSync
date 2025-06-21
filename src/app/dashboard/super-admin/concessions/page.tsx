@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { TicketPercent, PlusCircle, Trash2, Loader2, Building, User, CalendarFold, Search, Info, DollarSign, Edit } from "lucide-react";
+import { TicketPercent, PlusCircle, Trash2, Loader2, Building, User, CalendarFold, Search, Info, DollarSign, Edit, XCircle } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -59,15 +59,16 @@ export default function SuperAdminConcessionManagementPage() {
   const [isRevoking, setIsRevoking] = useState(false);
   
   const [academicYearFilter, setAcademicYearFilter] = useState<string>(`${new Date().getFullYear()}-${new Date().getFullYear() + 1}`);
+  const [showAddForm, setShowAddForm] = useState(false);
 
 
   const form = useForm<FeeConcessionFormData>({
     resolver: zodResolver(feeConcessionFormSchema),
     defaultValues: {
       studentId: "",
-      schoolId: "", // Will be set when school is selected
+      schoolId: "",
       academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-      concessionType: undefined, // Or a default from CONCESSION_TYPES
+      concessionType: undefined,
       amount: 0,
       reason: "",
     },
@@ -157,6 +158,7 @@ export default function SuperAdminConcessionManagementPage() {
     if (result.success) {
       toast({ title: "Concession Applied", description: result.message });
       form.reset({ ...form.getValues(), studentId: "", amount: 0, reason: "", concessionType: undefined });
+      setShowAddForm(false);
       if (selectedSchoolId) fetchConcessionsForSchool(selectedSchoolId, academicYearFilter);
     } else {
       toast({ variant: "destructive", title: "Application Failed", description: result.error || result.message });
@@ -176,6 +178,18 @@ export default function SuperAdminConcessionManagementPage() {
     }
     setConcessionToRevoke(null);
   };
+  
+  const openAddForm = () => {
+    setShowAddForm(true);
+    form.reset({
+      studentId: "",
+      schoolId: selectedSchoolId,
+      academicYear: academicYearFilter,
+      concessionType: undefined,
+      amount: 0,
+      reason: "",
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -187,114 +201,126 @@ export default function SuperAdminConcessionManagementPage() {
           <CardDescription>Apply and manage student fee concessions.</CardDescription>
         </CardHeader>
       </Card>
+      
+      {!showAddForm && (
+        <Button onClick={openAddForm}><PlusCircle className="mr-2 h-4 w-4"/>Apply New Concession</Button>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Apply New Concession</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <FormField
-                  control={form.control}
-                  name="schoolId"
-                  render={({ field }) => (
+      {showAddForm && (
+        <Card>
+            <CardHeader>
+            <CardTitle>Apply New Concession</CardTitle>
+            </CardHeader>
+            <CardContent>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <FormField
+                    control={form.control}
+                    name="schoolId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground"/>Select School</FormLabel>
+                        <Select
+                            onValueChange={(value) => {
+                            field.onChange(value);
+                            setSelectedSchoolId(value);
+                            }}
+                            value={field.value}
+                            disabled={isSubmitting || isLoadingSchools || schools.length === 0}
+                        >
+                            <FormControl><SelectTrigger>
+                                <SelectValue placeholder={isLoadingSchools ? "Loading schools..." : (schools.length === 0 ? "No schools available" : "Select a school")} />
+                            </SelectTrigger></FormControl>
+                            <SelectContent>
+                            {schools.map((school) => (
+                                <SelectItem key={school._id} value={school._id.toString()}>{school.schoolName}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="studentId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="flex items-center"><User className="mr-2 h-4 w-4 text-muted-foreground"/>Select Student</FormLabel>
+                        <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            disabled={isSubmitting || isLoadingStudents || studentsInSchool.length === 0 || !selectedSchoolId}
+                        >
+                            <FormControl><SelectTrigger>
+                                <SelectValue placeholder={
+                                    !selectedSchoolId ? "Select school first" :
+                                    isLoadingStudents ? "Loading students..." : 
+                                    (studentsInSchool.length === 0 ? "No students in school" : "Select a student")
+                                } />
+                            </SelectTrigger></FormControl>
+                            <SelectContent>
+                            {studentsInSchool.map((student) => (
+                                <SelectItem key={student._id!.toString()} value={student._id!.toString()}>{student.name} ({student.admissionId || 'N/A'})</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField control={form.control} name="academicYear" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground"/>Select School</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          setSelectedSchoolId(value);
-                        }}
-                        value={field.value}
-                        disabled={isSubmitting || isLoadingSchools || schools.length === 0}
-                      >
-                        <FormControl><SelectTrigger>
-                            <SelectValue placeholder={isLoadingSchools ? "Loading schools..." : (schools.length === 0 ? "No schools available" : "Select a school")} />
-                        </SelectTrigger></FormControl>
-                        <SelectContent>
-                          {schools.map((school) => (
-                            <SelectItem key={school._id} value={school._id.toString()}>{school.schoolName}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
+                        <FormLabel className="flex items-center"><CalendarFold className="mr-2 h-4 w-4 text-muted-foreground"/>Academic Year</FormLabel>
+                        <FormControl><Input placeholder="e.g., 2023-2024" {...field} disabled={isSubmitting} /></FormControl>
+                        <FormMessage />
                     </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="studentId"
-                  render={({ field }) => (
+                    )}/>
+                    <FormField control={form.control} name="concessionType" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center"><User className="mr-2 h-4 w-4 text-muted-foreground"/>Select Student</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={isSubmitting || isLoadingStudents || studentsInSchool.length === 0 || !selectedSchoolId}
-                      >
-                        <FormControl><SelectTrigger>
-                            <SelectValue placeholder={
-                                !selectedSchoolId ? "Select school first" :
-                                isLoadingStudents ? "Loading students..." : 
-                                (studentsInSchool.length === 0 ? "No students in school" : "Select a student")
-                            } />
-                        </SelectTrigger></FormControl>
+                        <FormLabel>Concession Type</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value as string | undefined} disabled={isSubmitting}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select concession type" /></SelectTrigger></FormControl>
                         <SelectContent>
-                          {studentsInSchool.map((student) => (
-                            <SelectItem key={student._id!.toString()} value={student._id!.toString()}>{student.name} ({student.classId || 'N/A'})</SelectItem>
-                          ))}
+                            {CONCESSION_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
                         </SelectContent>
-                      </Select>
-                      <FormMessage />
+                        </Select>
+                        <FormMessage />
                     </FormItem>
-                  )}
-                />
-                <FormField control={form.control} name="academicYear" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center"><CalendarFold className="mr-2 h-4 w-4 text-muted-foreground"/>Academic Year</FormLabel>
-                    <FormControl><Input placeholder="e.g., 2023-2024" {...field} disabled={isSubmitting} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}/>
-                <FormField control={form.control} name="concessionType" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Concession Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value as string | undefined} disabled={isSubmitting}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select concession type" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {CONCESSION_TYPES.map((type) => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}/>
-                <FormField control={form.control} name="amount" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Concession Amount (<span className="font-sans">₹</span>)</FormLabel>
-                    <FormControl><Input type="number" placeholder="0.00" {...field} disabled={isSubmitting} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}/>
-                <FormField control={form.control} name="reason" render={({ field }) => (
-                  <FormItem className="lg:col-span-3">
-                    <FormLabel>Reason for Concession</FormLabel>
-                    <FormControl><Textarea placeholder="Detailed reason..." {...field} disabled={isSubmitting} rows={3} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}/>
-              </div>
-              <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || !form.formState.isValid}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
-                Apply Concession
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+                    )}/>
+                    <FormField control={form.control} name="amount" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Concession Amount (<span className="font-sans">₹</span>)</FormLabel>
+                        <FormControl><Input type="number" placeholder="0.00" {...field} disabled={isSubmitting} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}/>
+                    <FormField control={form.control} name="reason" render={({ field }) => (
+                    <FormItem className="lg:col-span-3">
+                        <FormLabel>Reason for Concession</FormLabel>
+                        <FormControl><Textarea placeholder="Detailed reason..." {...field} disabled={isSubmitting} rows={3} /></FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}/>
+                </div>
+                <div className="flex gap-2">
+                    <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || !form.formState.isValid}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
+                        Apply Concession
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setShowAddForm(false)} disabled={isSubmitting}>
+                        <XCircle className="mr-2 h-4 w-4"/>Cancel
+                    </Button>
+                </div>
+                </form>
+            </Form>
+            </CardContent>
+        </Card>
+      )}
+      
 
       <Card>
         <CardHeader>
@@ -350,9 +376,11 @@ export default function SuperAdminConcessionManagementPage() {
                   <TableCell>{format(new Date(con.createdAt), "PP")}</TableCell>
                   <TableCell>
                     <AlertDialog open={concessionToRevoke?._id === con._id} onOpenChange={(open) => !open && setConcessionToRevoke(null)}>
-                        <Button variant="ghost" size="icon" onClick={() => setConcessionToRevoke(con)} disabled={isRevoking} className="text-destructive hover:bg-destructive/10">
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => setConcessionToRevoke(con)} disabled={isRevoking} className="text-destructive hover:bg-destructive/10">
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </AlertDialogTrigger>
                       {concessionToRevoke && concessionToRevoke._id === con._id && (
                         <AlertDialogContent>
                           <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -382,6 +410,3 @@ export default function SuperAdminConcessionManagementPage() {
     </div>
   );
 }
-
-
-    

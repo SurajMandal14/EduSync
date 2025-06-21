@@ -51,6 +51,7 @@ export default function SuperAdminUserManagementPage() {
   const [editingAdmin, setEditingAdmin] = useState<SchoolAdmin | null>(null);
   const [adminToDelete, setAdminToDelete] = useState<SchoolAdmin | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const form = useForm<SchoolAdminFormData>({
     resolver: zodResolver(schoolAdminFormSchema),
@@ -97,9 +98,21 @@ export default function SuperAdminUserManagementPage() {
   useEffect(() => {
     fetchAdminsAndSchools();
   }, [fetchAdminsAndSchools]);
+  
+  const resetAndCloseForm = () => {
+    setEditingAdmin(null);
+    setShowAddForm(false);
+    form.reset({
+      name: "",
+      email: "",
+      password: "",
+      schoolId: "",
+    });
+  };
 
   useEffect(() => {
     if (editingAdmin) {
+      setShowAddForm(true); // Show form when editing
       form.reset({
         name: editingAdmin.name || "",
         email: editingAdmin.email || "",
@@ -107,14 +120,20 @@ export default function SuperAdminUserManagementPage() {
         schoolId: editingAdmin.schoolId?.toString() || "",
       });
     } else {
-      form.reset({ // Reset to default when not editing
+      setShowAddForm(false);
+    }
+  }, [editingAdmin, form]);
+  
+  const openAddForm = () => {
+    setEditingAdmin(null);
+    setShowAddForm(true);
+    form.reset({
         name: "",
         email: "",
         password: "",
         schoolId: "",
-      });
-    }
-  }, [editingAdmin, form]);
+    });
+  };
 
   async function onSubmit(values: SchoolAdminFormData) {
     setIsSubmitting(true);
@@ -133,7 +152,7 @@ export default function SuperAdminUserManagementPage() {
         title: editingAdmin ? "Admin Updated" : "Admin Created",
         description: result.message,
       });
-      handleCancelEdit(); 
+      resetAndCloseForm(); 
       fetchAdminsAndSchools(); 
     } else {
       toast({
@@ -147,10 +166,6 @@ export default function SuperAdminUserManagementPage() {
   const handleEditClick = (admin: SchoolAdmin) => {
     setEditingAdmin(admin);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleCancelEdit = () => {
-    setEditingAdmin(null);
   };
 
   const handleDeleteClick = (admin: SchoolAdmin) => {
@@ -188,109 +203,109 @@ export default function SuperAdminUserManagementPage() {
             <Users className="mr-2 h-6 w-6" /> School Administrator Management
           </CardTitle>
           <CardDescription>
-            {editingAdmin ? `Editing: ${editingAdmin.name}` : "Create and manage administrator accounts for each school."}
+            Create and manage administrator accounts for each school.
           </CardDescription>
         </CardHeader>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{editingAdmin ? `Edit Admin: ${editingAdmin.name}` : "Add New School Administrator"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Jane Doe" {...field} disabled={isSubmitting} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email Address</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="admin@schoolname.com" {...field} disabled={isSubmitting} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} />
-                      </FormControl>
-                      {editingAdmin && <FormDescription className="text-xs">Leave blank to keep current password.</FormDescription>}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="schoolId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground" />Assign to School</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || isLoadingSchools}>
+      {!showAddForm && (
+        <Button onClick={openAddForm}><PlusCircle className="mr-2 h-4 w-4"/>Add New School Administrator</Button>
+      )}
+
+      {showAddForm && (
+        <Card>
+            <CardHeader>
+            <CardTitle>{editingAdmin ? `Edit Admin: ${editingAdmin.name}` : "Add New School Administrator"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Full Name</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={isLoadingSchools ? "Loading schools..." : "Select a school"} />
-                          </SelectTrigger>
+                            <Input placeholder="e.g., Jane Doe" {...field} disabled={isSubmitting} />
                         </FormControl>
-                        <SelectContent>
-                          {schools.map((school) => (
-                            <SelectItem key={school._id} value={school._id.toString()}>
-                              {school.schoolName}
-                            </SelectItem>
-                          ))}
-                           {schools.length === 0 && !isLoadingSchools && <SelectItem value="no-school" disabled>No schools available</SelectItem>}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="flex gap-2 items-center">
-                <Button type="submit" className="md:w-auto" disabled={isSubmitting || isLoadingSchools}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isSubmitting ? (editingAdmin ? "Updating..." : "Creating...") : (editingAdmin ? "Update Admin" : "Create School Admin")}
-                </Button>
-                {editingAdmin && (
-                  <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={isSubmitting}>
-                    <XCircle className="mr-2 h-4 w-4" /> Cancel Edit
-                  </Button>
-                )}
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Email Address</FormLabel>
+                        <FormControl>
+                            <Input type="email" placeholder="admin@schoolname.com" {...field} disabled={isSubmitting} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                            <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} />
+                        </FormControl>
+                        {editingAdmin && <FormDescription className="text-xs">Leave blank to keep current password.</FormDescription>}
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="schoolId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground" />Assign to School</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || isLoadingSchools}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder={isLoadingSchools ? "Loading schools..." : "Select a school"} />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {schools.map((school) => (
+                                <SelectItem key={school._id} value={school._id.toString()}>
+                                {school.schoolName}
+                                </SelectItem>
+                            ))}
+                            {schools.length === 0 && !isLoadingSchools && <SelectItem value="no-school" disabled>No schools available</SelectItem>}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+                <div className="flex gap-2 items-center">
+                    <Button type="submit" className="md:w-auto" disabled={isSubmitting || isLoadingSchools}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSubmitting ? (editingAdmin ? "Updating..." : "Creating...") : (editingAdmin ? "Update Admin" : "Create School Admin")}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={resetAndCloseForm} disabled={isSubmitting}>
+                        <XCircle className="mr-2 h-4 w-4" /> Cancel
+                    </Button>
+                </div>
+                </form>
+            </Form>
+            </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <CardTitle>Existing School Administrators</CardTitle>
-            {/* <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Input placeholder="Search admins..." className="w-full sm:max-w-xs" />
-              <Button variant="outline" size="icon"><Search className="h-4 w-4" /></Button>
-            </div> */}
           </div>
         </CardHeader>
         <CardContent>
