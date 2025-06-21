@@ -1,11 +1,10 @@
+# EduSync: Your All-in-One Campus Management Solution
 
-# Scholr: Your All-in-One Campus Management Solution
-
-Welcome to **Scholr**! This is a comprehensive, user-friendly platform designed to simplify the management of various aspects of an educational institution. It handles student information, attendance, fees, report card generation, and more, all in one place.
+Welcome to **EduSync**! This is a comprehensive, user-friendly platform designed to simplify the management of various aspects of an educational institution. It handles student information, attendance, fees, report card generation, and more, all in one place.
 
 ## Technology Stack
 
-Scholr is built with a modern and robust technology stack:
+EduSync is built with a modern and robust technology stack:
 
 - **Frontend:**
     - [Next.js](https://nextjs.org/) (with App Router)
@@ -20,9 +19,9 @@ Scholr is built with a modern and robust technology stack:
 - **Language:**
     - [TypeScript](https://www.typescriptlang.org/)
 
-## What Can Scholr Do?
+## What Can EduSync Do?
 
-Scholr is packed with features to make running your institution smoother:
+EduSync is packed with features to make running your institution smoother:
 
 - **Multi-Role User Management:**
     - **Super Admins:** Manage schools, school administrator accounts, define school-wide fee structures (tuition and bus fees, term-wise), and apply student fee concessions.
@@ -91,7 +90,7 @@ The project follows a structure typical for Next.js applications using the App R
     -   For cross-component state or more complex scenarios, React Context API is used (e.g., `StudentDataContext`).
     -   Data fetching from server actions is typically done via `async/await` calls within client components or passed as props from Server Components.
 -   **Forms:** React Hook Form (`react-hook-form`) is used for managing form state, validation (with Zod via `@hookform/resolvers/zod`), and submission.
--   **User Session on Client:** After login, user information (role, name, email, IDs) is stored in `localStorage`. The `Header` component and individual dashboard pages read this information to tailor the UI and navigation. The Header dynamically shows the school logo for affiliated users or "Scholr" for Super Admins.
+-   **User Session on Client:** After login, user information (role, name, email, IDs) is stored in `localStorage`. The `Header` component and individual dashboard pages read this information to tailor the UI and navigation. The Header dynamically shows the school logo for affiliated users or "EduSync" for Super Admins.
 
 ## Key Workflows (High-Level)
 
@@ -129,12 +128,12 @@ The project follows a structure typical for Next.js applications using the App R
 
 ## Getting Started
 
-Ready to dive in? Here's how to get Scholr up and running:
+Ready to dive in? Here's how to get EduSync up and running:
 
 1.  **Clone the Repository:** Get the project files onto your local machine.
     ```bash
     git clone <repository_url>
-    cd scholr # Or your project directory name
+    cd edusync # Or your project directory name
     ```
 
 2.  **Install Dependencies:** Use npm (or yarn/pnpm) to install all the necessary libraries.
@@ -147,7 +146,7 @@ Ready to dive in? Here's how to get Scholr up and running:
     *   Add your MongoDB connection string and database name:
         ```env
         MONGODB_URI="your_mongodb_connection_string"
-        MONGODB_DB_NAME="scholr_db_name" # Or your preferred database name
+        MONGODB_DB_NAME="edusync_db_name" # Or your preferred database name
 
         # Optional for Genkit (if you plan to use AI features with Google AI)
         # GOOGLE_API_KEY="your_google_ai_api_key"
@@ -188,4 +187,4 @@ Ready to dive in? Here's how to get Scholr up and running:
 
 ---
 
-We've built Scholr with simplicity and efficiency in mind. We hope you find it as helpful to use as we did to create! If you have any questions or need help, feel free to explore the documentation or reach out.
+We've built EduSync with simplicity and efficiency in mind. We hope you find it as helpful to use as we did to create! If you have any questions or need help, feel free to explore the documentation or reach out.
