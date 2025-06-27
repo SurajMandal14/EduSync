@@ -2,7 +2,7 @@
 import { MongoClient, ServerApiVersion, Db } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'campusflow'; // Default to 'campusflow' if not set
+const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'edusync_db'; // Default to 'edusync_db' if not set
 
 if (!MONGODB_URI) {
   throw new Error(
