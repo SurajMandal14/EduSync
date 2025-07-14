@@ -24,7 +24,8 @@ export const REPORT_CARD_TEMPLATES = {
   state_board: 'State Board Pattern',
   icse: 'ICSE Pattern',
   cambridge: 'Cambridge Pattern',
-  cbse_state: 'CBSE State Pattern', // Added from report card page
+  cbse_state: 'CBSE State Pattern',
+  nursing_college: 'Nursing College',
 } as const;
 
 export type ReportCardTemplateKey = keyof typeof REPORT_CARD_TEMPLATES;

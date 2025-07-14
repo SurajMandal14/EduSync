@@ -612,6 +612,12 @@ export default function AdminReportsPage() {
                     <span>CBSE State Template</span>
                  </Button>
             </Link>
+             <Link href="/dashboard/admin/reports/generate-nursing" passHref>
+                 <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                    <FileText className="h-6 w-6 mb-1"/>
+                    <span>Nursing College</span>
+                 </Button>
+            </Link>
             <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center" disabled>
                 <FileText className="h-6 w-6 mb-1 text-muted-foreground"/>
                 <span className="text-muted-foreground">More Templates (Soon)</span>
@@ -944,5 +950,3 @@ export default function AdminReportsPage() {
     </div>
   );
 }
-
-    
