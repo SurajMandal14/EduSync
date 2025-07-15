@@ -88,4 +88,3 @@ export interface BulkPublishReportInfo {
   isPublished: boolean;
   hasReport: boolean;
 }
-
