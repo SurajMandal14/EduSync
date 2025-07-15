@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/user";
 import { FileText, Loader2, User, School as SchoolIconUI, Search as SearchIcon, Printer } from 'lucide-react';
@@ -29,6 +30,12 @@ const getCurrentAcademicYear = (): string => {
   }
 };
 
+const TERMINAL_EXAMS = {
+    "Term1": "1st Terminal Examination",
+    "Term2": "2nd Terminal Examination",
+    "Final": "Final Examination"
+};
+
 export default function GenerateNursingReportPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -37,6 +44,7 @@ export default function GenerateNursingReportPage() {
   const [studentClass, setStudentClass] = useState<SchoolClass | null>(null);
   const [admissionIdInput, setAdmissionIdInput] = useState<string>("");
   const [academicYear, setAcademicYear] = useState(getCurrentAcademicYear());
+  const [selectedTerminal, setSelectedTerminal] = useState<string>("Term2"); // Default to 2nd term
   const [isLoading, setIsLoading] = useState(false);
   
   const [studentInfo, setStudentInfo] = useState<NursingStudentInfo>({});
@@ -80,22 +88,26 @@ export default function GenerateNursingReportPage() {
     }
     
     setStudentInfo({
-      regNo: school?.regNo || "70044/066/067", // Example data
-      email: school?.email || "mirchaiyanursingcampussiraha@gmail.com", // Example data
+      regNo: (school as any)?.regNo || "70044/066/067", 
+      email: (school as any)?.email || "mirchaiyanursingcampussiraha@gmail.com",
       schoolName: school?.schoolName || "Mirchaiya Health Nursing Campus Pvt.Ltd",
-      schoolAddress: "Mirchaiya-07, Siraha", // Example data
+      schoolAddress: "Mirchaiya-07, Siraha", 
       symbolNo: studentData.examNo,
       rollNo: studentData.rollNo,
       studentName: studentData.name,
       fatherName: studentData.fatherName,
       program: studentClassDetails?.name, 
-      year: "Third" // This needs to be dynamic
+      year: "Third", // This needs to be dynamic based on class or student data
+      examTitle: TERMINAL_EXAMS[selectedTerminal as keyof typeof TERMINAL_EXAMS],
+      session: academicYear
     });
 
     const marksRes = await getStudentMarksForReportCard(studentData._id, authUser.schoolId, academicYear, studentData.classId!);
     if (marksRes.success && marksRes.marks) {
       const formattedMarks = (studentClassDetails?.subjects || []).map(subject => {
-        const mark = marksRes.marks?.find(m => m.subjectName === subject.name && m.assessmentName.includes('Terminal'));
+        // This logic needs to be more robust to match the correct terminal exam marks
+        // For now, it finds the first assessment with 'Terminal' in its name
+        const mark = marksRes.marks?.find(m => m.subjectName === subject.name && (m.assessmentName.includes('Terminal') || m.assessmentName.includes(selectedTerminal)));
         return {
           subject: subject.name,
           totalMarks: mark?.maxMarks || 80,
@@ -139,6 +151,19 @@ export default function GenerateNursingReportPage() {
           <div className="w-full sm:w-auto">
             <Label htmlFor="academicYearInput" className="mb-1">Academic Year</Label>
             <Input id="academicYearInput" value={academicYear} onChange={e => setAcademicYear(e.target.value)} placeholder="YYYY-YYYY" disabled={isLoading}/>
+          </div>
+          <div className="w-full sm:w-auto">
+            <Label htmlFor="terminalSelect" className="mb-1">Terminal Exam</Label>
+            <Select onValueChange={setSelectedTerminal} value={selectedTerminal} disabled={isLoading}>
+                <SelectTrigger id="terminalSelect" className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Select Terminal Exam" />
+                </SelectTrigger>
+                <SelectContent>
+                    {Object.entries(TERMINAL_EXAMS).map(([key, value]) => (
+                        <SelectItem key={key} value={key}>{value}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
           </div>
           <Button onClick={handleLoadStudent} disabled={isLoading || !admissionIdInput}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>} Load Data

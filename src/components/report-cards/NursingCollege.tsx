@@ -14,6 +14,8 @@ export interface NursingStudentInfo {
   fatherName?: string;
   program?: string;
   year?: string;
+  examTitle?: string;
+  session?: string;
 }
 
 export interface NursingMarksEntry {
@@ -131,7 +133,7 @@ const NursingCollege: React.FC<NursingCollegeProps> = ({ studentInfo, marks }) =
             <p>Affiliation to Council for Technical Education & Vocational Training</p>
             <h1>{studentInfo.schoolName}</h1>
             <p>{studentInfo.schoolAddress}</p>
-            <div className="exam-title">Result of 2nd Terminal Examination 2081-082 Session</div>
+            <div className="exam-title">Result of {studentInfo.examTitle || "Examination"} {studentInfo.session ? `- ${studentInfo.session} Session` : ''}</div>
         </div>
 
         <table className="student-info-table">
@@ -221,7 +223,7 @@ const NursingCollege: React.FC<NursingCollegeProps> = ({ studentInfo, marks }) =
         
 
         <div style={{clear: 'both', paddingTop: '20px'}}>
-             <p><strong>Note:-</strong> This Result is according to the 2nd terminal 2081/082. This is computer generated result card parents can contact to admin office for enquiry .</p>
+             <p><strong>Note:-</strong> This Result is according to the {studentInfo.examTitle || "examination"} {studentInfo.session}. This is computer generated result card parents can contact to admin office for enquiry .</p>
         </div>
 
         <div className="footer-section">
