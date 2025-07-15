@@ -208,6 +208,9 @@ export default function GenerateCBSEStateReportPage() {
         setAvailableYearsAndTerms(yearsAndTermsRes.data);
         const latestYear = Object.keys(yearsAndTermsRes.data).sort().reverse()[0];
         setSelectedAcademicYear(latestYear);
+        if (yearsAndTermsRes.data[latestYear]?.length > 0) {
+          setSelectedTerm(yearsAndTermsRes.data[latestYear][0]);
+        }
       } else {
         toast({variant: "info", title: "No Marks Data", description: "No existing marks data found for this student to select from."})
       }
@@ -540,7 +543,7 @@ export default function GenerateCBSEStateReportPage() {
                     <Label htmlFor="termSelect">Term / Exam</Label>
                     <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoadingStudentAndClassData || !selectedAcademicYear}>
                         <SelectTrigger id="termSelect"><SelectValue placeholder="Select Term" /></SelectTrigger>
-                        <SelectContent>{availableYearsAndTerms[selectedAcademicYear]?.map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
+                        <SelectContent>{(availableYearsAndTerms[selectedAcademicYear] || []).map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
              </div>
@@ -634,4 +637,6 @@ export default function GenerateCBSEStateReportPage() {
 }
     
     
+
+
 

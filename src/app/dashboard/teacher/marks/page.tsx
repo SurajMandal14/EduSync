@@ -421,16 +421,10 @@ export default function TeacherMarksEntryPage() {
         <Card>
           <CardHeader>
             <CardTitle>Enter Marks for: {selectedSubject.label} - {selectedAssessment} ({selectedAcademicYear})</CardTitle>
-            {isNursingTemplate && (
+            {(isNursingTemplate || isCurrentAssessmentSA) && (
              <div className="mt-2">
                 <Label htmlFor="default-max-marks">Default Max Marks</Label>
                 <Input id="default-max-marks" type="number" className="w-32" value={defaultMaxMarks} onChange={(e) => handleDefaultMaxMarksChange(e.target.value)} disabled={isSubmitting || isLoadingStudentsAndMarks} />
-            </div>
-            )}
-            {isCurrentAssessmentSA && (
-             <div className="mt-2">
-                <Label htmlFor="default-max-marks-sa">Default Max Marks per SA Paper</Label>
-                <Input id="default-max-marks-sa" type="number" className="w-32" value={defaultMaxMarks} onChange={(e) => handleDefaultMaxMarksChange(e.target.value)} disabled={isSubmitting || isLoadingStudentsAndMarks}/>
             </div>
             )}
           </CardHeader>
@@ -491,3 +485,5 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
+
+
