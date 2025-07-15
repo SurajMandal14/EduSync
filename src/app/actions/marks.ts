@@ -242,7 +242,7 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     if (term) {
         if (term === 'Annual') {
             query.assessmentName = { $regex: /^(FA|SA)/ }; // All FA and SA marks for annual CBSE
-        } else if (term === 'Term1' || term === 'Term2' || term === 'Term3' || term === 'Final') {
+        } else if (['Term1', 'Term2', 'Term3', 'Final Exam'].includes(term)) { // Updated this line
              query.assessmentName = term; // For Nursing template
         }
     }

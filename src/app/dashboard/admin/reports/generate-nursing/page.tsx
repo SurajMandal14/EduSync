@@ -33,6 +33,7 @@ const getCurrentAcademicYear = (): string => {
 const TERMINAL_EXAMS = {
     "Term1": "1st Terminal Examination",
     "Term2": "2nd Terminal Examination",
+    "Term3": "3rd Terminal Examination",
     "Final": "Final Examination"
 };
 
@@ -72,6 +73,10 @@ export default function GenerateNursingReportPage() {
     const studentRes = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId);
     if (!studentRes.success || !studentRes.student) {
       toast({ variant: 'destructive', title: "Error", description: studentRes.message || "Could not load student" });
+      setStudent(null);
+      setStudentClass(null);
+      setStudentInfo({});
+      setMarks([]);
       setIsLoading(false);
       return;
     }
@@ -102,20 +107,21 @@ export default function GenerateNursingReportPage() {
       session: academicYear
     });
 
-    const marksRes = await getStudentMarksForReportCard(studentData._id, authUser.schoolId, academicYear, studentData.classId!);
+    const marksRes = await getStudentMarksForReportCard(studentData._id, authUser.schoolId, academicYear, studentData.classId!, selectedTerminal);
     if (marksRes.success && marksRes.marks) {
       const formattedMarks = (studentClassDetails?.subjects || []).map(subject => {
-        // This logic needs to be more robust to match the correct terminal exam marks
-        // For now, it finds the first assessment with 'Terminal' in its name
-        const mark = marksRes.marks?.find(m => m.subjectName === subject.name && (m.assessmentName.includes('Terminal') || m.assessmentName.includes(selectedTerminal)));
+        const mark = marksRes.marks?.find(m => m.subjectName === subject.name && m.assessmentName === selectedTerminal);
         return {
           subject: subject.name,
-          totalMarks: mark?.maxMarks || 80,
+          totalMarks: mark?.maxMarks || 80, // Default if not found
           passingMarks: (mark?.maxMarks || 80) * 0.4,
-          obtainMarks: mark?.marksObtained || 0
+          obtainMarks: mark?.marksObtained ?? 0 // Use ?? 0 to handle null/undefined
         };
       });
       setMarks(formattedMarks);
+    } else {
+        setMarks([]);
+        toast({variant: "info", title: "No Marks Found", description: `No marks found for ${selectedTerminal} in ${academicYear}.`})
     }
 
     setIsLoading(false);
@@ -168,7 +174,9 @@ export default function GenerateNursingReportPage() {
           <Button onClick={handleLoadStudent} disabled={isLoading || !admissionIdInput}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>} Load Data
           </Button>
-          <Button onClick={handlePrint} disabled={!student}><Printer className="mr-2 h-4 w-4"/>Print</Button>
+          <Button onClick={handlePrint} disabled={!student}>
+            <Printer className="mr-2 h-4 w-4"/>Print
+          </Button>
         </CardContent>
       </Card>
       
