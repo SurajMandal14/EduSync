@@ -45,8 +45,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         className: className,
         subjectId: subjectId,
         subjectName: subjectName,
-        assessmentName: sm.assessmentName, // Use specific assessment name from each mark entry
-        // term: term, // Removed
+        assessmentName: sm.assessmentName,
         academicYear: academicYear,
         marksObtained: sm.marksObtained,
         maxMarks: sm.maxMarks,
@@ -61,7 +60,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
             classId: markFieldsToSet.classId,
             subjectId: markFieldsToSet.subjectId,
             assessmentName: markFieldsToSet.assessmentName,
-            // term: markFieldsToSet.term, // Removed
             academicYear: markFieldsToSet.academicYear,
             schoolId: markFieldsToSet.schoolId,
           },
@@ -80,7 +78,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
               classId: markFieldsToSet.classId,
               subjectId: markFieldsToSet.subjectId,
               assessmentName: markFieldsToSet.assessmentName,
-              // term: markFieldsToSet.term, // Removed
               academicYear: markFieldsToSet.academicYear,
               schoolId: markFieldsToSet.schoolId,
               createdAt: new Date(),
@@ -100,6 +97,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     revalidatePath('/dashboard/teacher/marks');
     revalidatePath('/dashboard/admin/reports/generate-cbse-state');
+    revalidatePath('/dashboard/admin/reports/generate-nursing');
 
     return {
       success: true,
@@ -118,8 +116,7 @@ export async function getMarksForAssessment(
   schoolId: string,
   classId: string,
   subjectNameParam: string,
-  assessmentNameBase: string, // e.g., "FA1", "SA1"
-  // term: string, // Removed
+  assessmentNameBase: string,
   academicYear: string
 ): Promise<GetMarksResult> {
   try {
@@ -137,16 +134,15 @@ export async function getMarksForAssessment(
     } else if (["SA1", "SA2"].includes(assessmentNameBase)) {
       queryAssessmentFilter = { $regex: `^${assessmentNameBase}-Paper` };
     } else {
-      // For any other specific assessment names (though current UI won't use this path)
+      // For Nursing College terms or other specific assessments
       queryAssessmentFilter = { $in: [assessmentNameBase] };
     }
 
     const marks = await marksCollection.find({
       schoolId: new ObjectId(schoolId),
       classId: classId,
-      subjectId: subjectNameParam, // Querying by subjectName (which is stored in subjectId field in DB)
+      subjectId: subjectNameParam,
       assessmentName: queryAssessmentFilter,
-      // term: term, // Removed
       academicYear: academicYear,
     }).toArray();
 

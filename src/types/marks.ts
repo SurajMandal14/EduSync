@@ -11,8 +11,7 @@ export interface MarkEntry {
   className: string;
   subjectId: string; // Stores subject name
   subjectName: string;
-  assessmentName: string; // e.g., "FA1-Tool1", "SA1-Paper1"
-  // term: string; // Removed
+  assessmentName: string; // e.g., "FA1-Tool1", "SA1-Paper1", "Term 1"
   academicYear: string;
   marksObtained: number;
   maxMarks: number;
@@ -26,10 +25,9 @@ export interface MarkEntry {
 export const studentMarkInputSchema = z.object({
   studentId: z.string().min(1),
   studentName: z.string().min(1),
-  assessmentName: z.string().min(1, "Internal assessment name (e.g., FA1-Tool1 or SA1-Paper1) is required."),
+  assessmentName: z.string().min(1, "Internal assessment name is required."),
   marksObtained: z.coerce.number().min(0, "Marks cannot be negative."),
   maxMarks: z.coerce.number().min(1, "Max marks must be at least 1."),
-  _internalAssessmentName: z.string().optional(), // Used by UI, mapped to assessmentName in payload
 }).refine(data => data.marksObtained <= data.maxMarks, {
   message: "Marks obtained cannot exceed max marks.",
   path: ["marksObtained"],
@@ -43,7 +41,6 @@ export const marksSubmissionPayloadSchema = z.object({
   className: z.string().min(1, "Class name is required."),
   subjectId: z.string().min(1, "Subject ID/Name is required."), // This will be subject name
   subjectName: z.string().min(1, "Subject name is required."),
-  // term: z.string().min(1, "Term is required."), // Removed
   academicYear: z.string().min(4, "Academic year is required (e.g., 2023-2024)."),
   markedByTeacherId: z.string().min(1),
   schoolId: z.string().min(1),
