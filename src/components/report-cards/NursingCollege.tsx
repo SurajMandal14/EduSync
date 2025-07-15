@@ -36,6 +36,29 @@ const NursingCollege: React.FC<NursingCollegeProps> = ({ studentInfo, marks }) =
   const totalPercentage = totalMarksPossible > 0 ? Math.round((totalObtained / totalMarksPossible) * 100) : 0;
   const overallStatus = marks.every(mark => mark.obtainMarks >= mark.passingMarks) ? "PASS" : "FAIL";
 
+  const getGrade = (percentage: number): string => {
+    if (percentage >= 90) return "A+";
+    if (percentage >= 80) return "A";
+    if (percentage >= 70) return "B+";
+    if (percentage >= 60) return "B";
+    if (percentage >= 50) return "C";
+    if (percentage < 40) return "No Grade"; // Assuming pass is 40% from the 0.4 logic
+    return "No Grade";
+  };
+  
+  const getDivision = (percentage: number): string => {
+    if (overallStatus === "FAIL") return "FAIL";
+    if (percentage >= 80) return "Distinction";
+    if (percentage >= 60) return "First Division";
+    if (percentage >= 50) return "Second Division";
+    if (percentage >= 40) return "Third Division";
+    return "FAIL";
+  };
+
+  const finalGrade = getGrade(totalPercentage);
+  const finalDivision = getDivision(totalPercentage);
+
+
   return (
     <>
       <style jsx global>{`
@@ -212,8 +235,8 @@ const NursingCollege: React.FC<NursingCollegeProps> = ({ studentInfo, marks }) =
                     <td>
                         <table className="grading-table" style={{width: '100%', height:'100%', marginTop: '0'}}>
                             <tbody>
-                                <tr><td>Division</td></tr>
-                                <tr><td>Grade</td></tr>
+                                <tr><td><strong>Division</strong></td><td>{finalDivision}</td></tr>
+                                <tr><td><strong>Grade</strong></td><td>{finalGrade}</td></tr>
                             </tbody>
                         </table>
                     </td>
