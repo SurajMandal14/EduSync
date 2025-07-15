@@ -31,10 +31,10 @@ const getCurrentAcademicYear = (): string => {
 };
 
 const TERMINAL_EXAMS = {
-    "Term1": "1st Terminal Examination",
-    "Term2": "2nd Terminal Examination",
-    "Term3": "3rd Terminal Examination",
-    "Final": "Final Examination"
+    "Term 1": "1st Terminal Examination",
+    "Term 2": "2nd Terminal Examination",
+    "Term 3": "3rd Terminal Examination",
+    "Final Exam": "Final Examination"
 };
 
 export default function GenerateNursingReportPage() {
@@ -45,7 +45,7 @@ export default function GenerateNursingReportPage() {
   const [studentClass, setStudentClass] = useState<SchoolClass | null>(null);
   const [admissionIdInput, setAdmissionIdInput] = useState<string>("");
   const [academicYear, setAcademicYear] = useState(getCurrentAcademicYear());
-  const [selectedTerminal, setSelectedTerminal] = useState<string>("Term2"); // Default to 2nd term
+  const [selectedTerminal, setSelectedTerminal] = useState<string>("Term 2"); // Default to 2nd term
   const [isLoading, setIsLoading] = useState(false);
   
   const [studentInfo, setStudentInfo] = useState<NursingStudentInfo>({});
