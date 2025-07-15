@@ -70,7 +70,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
               subjectName: markFieldsToSet.subjectName,
               marksObtained: markFieldsToSet.marksObtained,
               maxMarks: markFieldsToSet.maxMarks,
-              markedByTeacherId: markFieldsToSet.markedByTeacherId,
               updatedAt: new Date(),
             },
             $setOnInsert: {
@@ -80,6 +79,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
               assessmentName: markFieldsToSet.assessmentName,
               academicYear: markFieldsToSet.academicYear,
               schoolId: markFieldsToSet.schoolId,
+              markedByTeacherId: markFieldsToSet.markedByTeacherId,
               createdAt: new Date(),
             },
           },
@@ -222,7 +222,7 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string)
     }
 }
 
-export async function getStudentMarksForReportCard(studentId: string, schoolId: string, academicYear: string, classId: string): Promise<GetMarksResult> {
+export async function getStudentMarksForReportCard(studentId: string, schoolId: string, academicYear: string, classId: string, term?: string): Promise<GetMarksResult> {
   try {
     if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
       return { success: false, message: 'Invalid Student, School, or Class ID format.', error: 'Invalid ID format.' };
@@ -231,12 +231,24 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<MarkEntry>('marks');
 
-    const marks = await marksCollection.find({
+    const query: any = {
       studentId: new ObjectId(studentId),
       schoolId: new ObjectId(schoolId),
       classId: classId,
       academicYear: academicYear,
-    }).toArray();
+    };
+    
+    // If a term is provided, filter marks by assessment names relevant to that term.
+    if (term) {
+        if (term === 'Annual') {
+            query.assessmentName = { $regex: /^(FA|SA)/ }; // All FA and SA marks for annual CBSE
+        } else if (term === 'Term1' || term === 'Term2' || term === 'Term3' || term === 'Final') {
+             query.assessmentName = term; // For Nursing template
+        }
+    }
+
+
+    const marks = await marksCollection.find(query).toArray();
 
     const marksWithStrId = marks.map(mark => ({
         ...mark,
@@ -253,5 +265,73 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     console.error('Get student marks for report card error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, error: errorMessage, message: 'Failed to fetch marks for report card.' };
+  }
+}
+
+export interface AvailableYearsAndTerms {
+  [year: string]: string[];
+}
+export interface GetAvailableYearsAndTermsResult {
+  success: boolean;
+  data?: AvailableYearsAndTerms;
+  message?: string;
+  error?: string;
+}
+
+// New action to get available academic years and terms for a student
+export async function getAvailableYearsAndTermsForStudent(studentId: string, schoolId: string): Promise<GetAvailableYearsAndTermsResult> {
+  try {
+    if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid Student or School ID format.' };
+    }
+
+    const { db } = await connectToDatabase();
+    
+    const results = await db.collection('marks').aggregate([
+      { $match: { studentId: new ObjectId(studentId), schoolId: new ObjectId(schoolId) } },
+      {
+        $group: {
+          _id: {
+            academicYear: '$academicYear',
+            assessmentName: '$assessmentName'
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          academicYear: '$_id.academicYear',
+          assessmentName: '$_id.assessmentName'
+        }
+      }
+    ]).toArray();
+    
+    const availableData: AvailableYearsAndTerms = {};
+    
+    results.forEach(item => {
+      const year = item.academicYear;
+      const assessment = item.assessmentName;
+      
+      if (!availableData[year]) {
+        availableData[year] = [];
+      }
+      
+      let term: string | null = null;
+      if (assessment.startsWith('FA') || assessment.startsWith('SA')) {
+        term = 'Annual'; // Group all CBSE marks under one term
+      } else if (['Term1', 'Term2', 'Term3', 'Final'].includes(assessment)) {
+        term = assessment;
+      }
+
+      if (term && !availableData[year].includes(term)) {
+        availableData[year].push(term);
+      }
+    });
+
+    return { success: true, data: availableData };
+
+  } catch (error) {
+    console.error('Error fetching available years and terms:', error);
+    return { success: false, message: 'Failed to fetch available academic terms.', error: String(error) };
   }
 }
