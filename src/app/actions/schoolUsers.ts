@@ -8,6 +8,7 @@ import type { User, UserRole } from '@/types/user';
 import { createSchoolUserFormSchema, type CreateSchoolUserFormData, updateSchoolUserFormSchema, type UpdateSchoolUserFormData, type CreateSchoolUserServerActionFormData } from '@/types/user';
 import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
+import { format, parse } from 'date-fns';
 
 
 export interface CreateSchoolUserResult {
@@ -141,12 +142,19 @@ export async function bulkCreateSchoolUsers(
   const existingEmails = new Set(existingStudents.map(s => s.email));
 
   for (const student of students) {
-    const { name, email, password, admissionId } = student;
-    if (!name || !email || !password || !admissionId) {
-      errors.push(`Skipping student with email '${email || 'N/A'}' due to missing required fields (name, email, password, admissionId).`);
+    const { name, admissionId, dob } = student;
+    let { email } = student;
+
+    if (!name || !admissionId || !dob) {
+      errors.push(`Skipping student with Admission ID '${admissionId || 'N/A'}' due to missing required fields (name, admissionId, dob).`);
       skippedCount++;
       continue;
     }
+
+    if (!email) {
+      email = `${admissionId}@school.local`; 
+    }
+
     if (existingEmails.has(email)) {
       errors.push(`Skipping student '${name}' (${email}): Email already exists.`);
       skippedCount++;
@@ -158,9 +166,23 @@ export async function bulkCreateSchoolUsers(
       continue;
     }
 
+    let password;
+    try {
+      const parsedDate = parse(dob, 'yyyy-MM-dd', new Date());
+      if (isNaN(parsedDate.getTime())) {
+          throw new Error('Invalid date format');
+      }
+      password = format(parsedDate, 'ddMMyyyy');
+    } catch (e) {
+      errors.push(`Skipping student '${name}' (${email}): Invalid or missing DOB for password generation.`);
+      skippedCount++;
+      continue;
+    }
+    
     const hashedPassword = await bcrypt.hash(password, 10);
     const newStudent: Omit<User, '_id'> = {
       ...student,
+      email, // Use the original or generated email
       role: 'student',
       password: hashedPassword,
       schoolId: new ObjectId(schoolId),
@@ -657,3 +679,5 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     return { success: false, error: errorMessage, message: 'Failed to fetch student details for report card.' };
   }
 }
+
+  

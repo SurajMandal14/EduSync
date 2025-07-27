@@ -160,16 +160,8 @@ export default function StudentImportPage() {
             }
         }
         
-        // Generate default password from DOB
-        if (studentData.dob) {
-          try {
-            // Handle various common date formats
-            const parsedDate = parse(studentData.dob, 'yyyy-MM-dd', new Date());
-            if(!isNaN(parsedDate.getTime())){
-                studentData.password = format(parsedDate, 'ddMMyyyy');
-            }
-          } catch(e) { /* ignore parse error, password will be undefined */ }
-        }
+        // This password will be ignored by the backend, which now generates it from DOB
+        studentData.password = "default_password_placeholder"; 
         
         studentsToImport.push(studentData as CreateSchoolUserServerActionFormData);
     }
@@ -338,3 +330,5 @@ export default function StudentImportPage() {
     </div>
   );
 }
+
+  
