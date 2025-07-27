@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -32,12 +32,12 @@ export default function StudentImportPage() {
   const [importResult, setImportResult] = useState<{ importedCount: number; skippedCount: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  useState(() => {
+  useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
         setAuthUser(JSON.parse(storedUser));
     }
-  });
+  }, []);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,7 +52,7 @@ export default function StudentImportPage() {
         const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
         
         if (json.length < 2) {
           toast({ variant: 'destructive', title: 'Invalid File', description: 'The spreadsheet must contain at least one header row and one data row.' });
@@ -62,12 +62,7 @@ export default function StudentImportPage() {
         const extractedHeaders = (json[0] as any[]).map(String);
         
         const allRowsAsString = (json.slice(1) as any[][]).map(row => 
-          row.map(cell => {
-            if(cell instanceof Date) {
-              return format(cell, 'yyyy-MM-dd');
-            }
-            return String(cell ?? '');
-          })
+          row.map(cell => String(cell ?? ''))
         );
 
         const extractedSample = allRowsAsString.slice(0, 5);
