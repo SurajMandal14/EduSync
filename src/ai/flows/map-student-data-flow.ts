@@ -24,7 +24,6 @@ export async function mapStudentData(
 const mappingPrompt = ai.definePrompt({
   name: 'mapStudentDataPrompt',
   input: { schema: studentImportInputSchema },
-  output: { schema: studentImportOutputSchema },
   prompt: `
       You are an intelligent data mapping assistant for a school management system. Your task is to map the columns from a user's uploaded spreadsheet to the predefined database schema fields.
 
@@ -46,7 +45,7 @@ const mappingPrompt = ai.definePrompt({
       2. The values must be one of the available database field keys.
       3. Be intelligent with the mapping. For example, if a header is "Student_Name", "full name", or "student", it should map to "name". "D.O.B." should map to "dob". "admission number" should map to "admissionId".
       4. If a column from the spreadsheet does not correspond to any available database field, its value in the JSON object should be \`null\`. Do not try to force a mapping.
-      5. Ensure the final output is only the JSON object, with no extra text or explanations.
+      5. Ensure the final output is ONLY the JSON object, with no extra text or explanations.
     `,
   config: {
     temperature: 0.1, // Lower temperature for more deterministic mapping
@@ -60,10 +59,19 @@ const mapStudentDataFlow = ai.defineFlow(
     outputSchema: studentImportOutputSchema,
   },
   async (input) => {
-    const { output } = await mappingPrompt(input);
+    const { text } = await mappingPrompt(input);
+    const output = text;
     if (!output) {
       throw new Error('AI failed to generate a mapping.');
     }
-    return output;
+    try {
+      // Clean the output to ensure it's a valid JSON string
+      const jsonString = output.trim().replace(/```json|```/g, '');
+      const parsed = JSON.parse(jsonString);
+      return studentImportOutputSchema.parse(parsed);
+    } catch (e) {
+      console.error("Failed to parse AI output:", e, "Raw output:", output);
+      throw new Error("AI returned an invalid JSON object.");
+    }
   }
 );
