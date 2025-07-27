@@ -146,19 +146,19 @@ export async function bulkCreateSchoolUsers(
   const existingEmails = new Set(existingStudents.map(s => s.email));
 
   for (const student of students) {
-    const { name, dob } = student;
-    let { email, registrationNo } = student;
+    const { name, dob, registrationNo } = student;
+    let { email } = student;
 
     if (!name || !dob) {
       errors.push(`Skipping student '${name || 'N/A'}' due to missing required fields (name, dob).`);
       skippedCount++;
       continue;
     }
-
+    
     if (!registrationNo) {
-        errors.push(`Skipping student '${name}' due to missing Registration Number.`);
-        skippedCount++;
-        continue;
+      errors.push(`Skipping student '${name}' due to missing Registration Number.`);
+      skippedCount++;
+      continue;
     }
 
     if (!email) {
@@ -215,7 +215,7 @@ export async function bulkCreateSchoolUsers(
 
   if (validStudentsToInsert.length > 0) {
     try {
-      await usersCollection.insertMany(validStudentsToInsert);
+      await usersCollection.insertMany(validStudentsToInsert as any[]);
     } catch (error) {
       console.error("Bulk insert failed:", error);
       return { success: false, message: 'A database error occurred during bulk insertion.', importedCount: 0, skippedCount: students.length, errors: [...errors, 'Failed to write to database.'] };
@@ -509,6 +509,51 @@ export async function deleteSchoolUser(userId: string, schoolId: string): Promis
   }
 }
 
+export interface DeleteBulkSchoolUsersResult {
+  success: boolean;
+  message: string;
+  deletedCount: number;
+  error?: string;
+}
+
+export async function deleteBulkSchoolUsers(userIds: string[], schoolId: string): Promise<DeleteBulkSchoolUsersResult> {
+  try {
+    if (!ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid School ID format.', deletedCount: 0, error: 'Invalid ID.' };
+    }
+    const validUserIds = userIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
+    if (validUserIds.length !== userIds.length) {
+      return { success: false, message: 'Some User IDs provided were invalid.', deletedCount: 0, error: 'Invalid User ID format.' };
+    }
+    if (validUserIds.length === 0) {
+      return { success: true, message: 'No users selected for deletion.', deletedCount: 0 };
+    }
+
+    const { db } = await connectToDatabase();
+    const usersCollection = db.collection<User>('users');
+
+    const result = await usersCollection.deleteMany({
+      _id: { $in: validUserIds as any[] },
+      schoolId: new ObjectId(schoolId) as any,
+      role: 'student'
+    });
+
+    if (result.deletedCount === 0) {
+      return { success: false, message: 'No matching students found or they were already deleted.', deletedCount: 0, error: 'Users not found.' };
+    }
+
+    revalidatePath('/dashboard/admin/students');
+    revalidatePath('/dashboard/admin/users');
+
+    return { success: true, message: `${result.deletedCount} student(s) deleted successfully!`, deletedCount: result.deletedCount };
+
+  } catch (error) {
+    console.error('Bulk delete school users server action error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    return { success: false, message: 'An unexpected error occurred during bulk deletion.', deletedCount: 0, error: errorMessage };
+  }
+}
+
 export async function getStudentsByClass(schoolId: string, classId: string): Promise<GetSchoolUsersResult> {
   try {
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
@@ -699,7 +744,3 @@ export async function getStudentDetailsForReportCard(registrationNoQuery: string
     return { success: false, error: errorMessage, message: 'Failed to fetch student details for report card.' };
   }
 }
-
-  
-
-    

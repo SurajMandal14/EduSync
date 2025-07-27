@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UploadCloud } from "lucide-react";
@@ -31,7 +32,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { createSchoolUser, getSchoolUsers, updateSchoolUser, deleteSchoolUser } from "@/app/actions/schoolUsers";
+import { createSchoolUser, getSchoolUsers, updateSchoolUser, deleteSchoolUser, deleteBulkSchoolUsers } from "@/app/actions/schoolUsers";
 import { 
     createStudentFormSchema, type CreateStudentFormData,
     updateSchoolUserFormSchema, type UpdateSchoolUserFormData,
@@ -41,7 +42,7 @@ import { getSchoolById } from "@/app/actions/schools";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import type { User as AppUser } from "@/types/user";
 import type { School, TermFee } from "@/types/school";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
 import Link from "next/link";
@@ -73,6 +74,7 @@ export default function AdminStudentManagementPage() {
   
   const [studentToDelete, setStudentToDelete] = useState<SchoolStudent | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Record<string, boolean>>({});
 
   const [calculatedTuitionFee, setCalculatedTuitionFee] = useState<number | null>(null);
   const [noTuitionFeeStructureFound, setNoTuitionFeeStructureFound] = useState(false);
@@ -323,12 +325,47 @@ export default function AdminStudentManagementPage() {
     }
     setStudentToDelete(null);
   };
+
+  const handleBulkDelete = async () => {
+    if (!authUser?.schoolId) return;
+    const idsToDelete = Object.keys(selectedStudentIds).filter(id => selectedStudentIds[id]);
+    if (idsToDelete.length === 0) {
+      toast({ variant: 'info', title: 'No Students Selected', description: 'Please select students to delete.' });
+      return;
+    }
+    setIsDeleting(true);
+    const result = await deleteBulkSchoolUsers(idsToDelete, authUser.schoolId);
+    setIsDeleting(false);
+    if (result.success) {
+      toast({ title: 'Bulk Delete Successful', description: result.message });
+      setSelectedStudentIds({});
+      fetchInitialData();
+    } else {
+      toast({ variant: 'destructive', title: 'Bulk Delete Failed', description: result.error || result.message });
+    }
+  };
   
   const filteredStudents = allSchoolStudents.filter(user => 
     Object.values(user).some(val => String(val).toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const totalAnnualFee = (calculatedTuitionFee || 0) + (form.getValues("enableBusTransport") && calculatedBusFee ? (calculatedBusFee || 0) : 0);
+  const selectedStudentsCount = useMemo(() => Object.values(selectedStudentIds).filter(Boolean).length, [selectedStudentIds]);
+
+  const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
+    if (checked === 'indeterminate') return;
+    const newSelections: Record<string, boolean> = {};
+    if (checked) {
+      filteredStudents.forEach(student => {
+        if (student._id) newSelections[student._id.toString()] = true;
+      });
+    }
+    setSelectedStudentIds(newSelections);
+  };
+
+  const allFilteredSelected = filteredStudents.length > 0 && filteredStudents.every(s => s._id && selectedStudentIds[s._id.toString()]);
+  const someFilteredSelected = selectedStudentsCount > 0 && !allFilteredSelected;
+  const selectAllState = allFilteredSelected ? true : (someFilteredSelected ? 'indeterminate' : false);
+
 
   const getClassNameFromId = (classId: string | undefined): string => {
     if (!classId) return 'N/A';
@@ -369,13 +406,37 @@ export default function AdminStudentManagementPage() {
       </Card>
       
       {!editingStudent && !showAddForm && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
             <Button onClick={openAddForm}>
               <UserPlus className="mr-2 h-4 w-4" /> Add New Student
             </Button>
             <Button asChild variant="outline">
                 <Link href="/dashboard/admin/students/import"><UploadCloud className="mr-2 h-4 w-4"/>Bulk Import Students</Link>
             </Button>
+            {selectedStudentsCount > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete ({selectedStudentsCount}) Selected
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete the {selectedStudentsCount} selected student(s). This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBulkDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                        {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        Delete Selected Students
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+            )}
         </div>
       )}
 
@@ -534,10 +595,19 @@ export default function AdminStudentManagementPage() {
              <div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading students...</p></div>
           ) : filteredStudents.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Registration No.</TableHead><TableHead>Symbol No.</TableHead><TableHead>Class</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow>
+                <TableHead className="w-12"><Checkbox checked={selectAllState} onCheckedChange={handleSelectAllChange} /></TableHead>
+                <TableHead>Name</TableHead><TableHead>Registration No.</TableHead><TableHead>Symbol No.</TableHead><TableHead>Class</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {filteredStudents.map((student) => (
-                <TableRow key={student._id?.toString()}>
+                <TableRow key={student._id?.toString()} data-state={selectedStudentIds[student._id!] ? "selected" : ""}>
+                  <TableCell>
+                      <Checkbox
+                        checked={!!selectedStudentIds[student._id!]}
+                        onCheckedChange={(checked) => setSelectedStudentIds(prev => ({...prev, [student._id!]: !!checked}))}
+                        aria-label={`Select student ${student.name}`}
+                      />
+                  </TableCell>
                   <TableCell>{student.name}</TableCell>
                   <TableCell>{student.registrationNo || 'N/A'}</TableCell>
                   <TableCell>{student.symbolNo || 'N/A'}</TableCell>
@@ -574,3 +644,4 @@ export default function AdminStudentManagementPage() {
     </div>
   );
 }
+
