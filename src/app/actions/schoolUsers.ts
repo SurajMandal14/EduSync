@@ -168,11 +168,18 @@ export async function bulkCreateSchoolUsers(
 
     let password;
     try {
+      // Handle various date formats that might come from a spreadsheet
       const parsedDate = parse(dob, 'yyyy-MM-dd', new Date());
       if (isNaN(parsedDate.getTime())) {
-          throw new Error('Invalid date format');
+          // try another common format
+          const parsedDate2 = parse(dob, 'dd-MM-yyyy', new Date());
+          if (isNaN(parsedDate2.getTime())) {
+            throw new Error('Invalid date format');
+          }
+          password = format(parsedDate2, 'ddMMyyyy');
+      } else {
+        password = format(parsedDate, 'ddMMyyyy');
       }
-      password = format(parsedDate, 'ddMMyyyy');
     } catch (e) {
       errors.push(`Skipping student '${name}' (${email}): Invalid or missing DOB for password generation.`);
       skippedCount++;
@@ -614,6 +621,7 @@ export interface StudentDetailsForReportCard {
     dob?: string;
     section?: string;
     rollNo?: string;
+    aadharNo?: string;
     
     udiseCodeSchoolName?: string; // Placeholder for school name
     symbolNo?: string;
@@ -664,6 +672,7 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
       dob: student.dob,
       section: student.section,
       rollNo: student.rollNo,
+      aadharNo: student.aadharNo,
       
       symbolNo: student.symbolNo,
       registrationNo: student.registrationNo,

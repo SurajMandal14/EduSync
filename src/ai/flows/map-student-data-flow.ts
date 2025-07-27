@@ -43,7 +43,7 @@ const mappingPrompt = ai.definePrompt({
       Rules:
       1. The keys of the output JSON object must be the exact header strings from the user's spreadsheet.
       2. The values must be one of the available database field keys.
-      3. Be intelligent with the mapping. For example, if a header is "Student_Name", "full name", or "student", it should map to "name". "D.O.B." should map to "dob". "admission number" should map to "admissionId".
+      3. Be intelligent with the mapping. For example, if a header is "Student_Name", "full name", or "student", it should map to "name". "D.O.B." should map to "dob". "admission number" should map to "admissionId". "Reg No" should map to "registrationNo".
       4. If a column from the spreadsheet does not correspond to any available database field, its value in the JSON object should be \`null\`. Do not try to force a mapping.
       5. Ensure the final output is ONLY the JSON object, with no extra text or explanations.
     `,
