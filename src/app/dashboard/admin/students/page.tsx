@@ -393,7 +393,10 @@ export default function AdminStudentManagementPage() {
                       <FormItem><FormLabel>Student Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="fatherName" render={({ field }) => (
-                      <FormItem><FormLabel>Father/Mother Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
+                  )}/>
+                  <FormField control={editForm.control} name="motherName" render={({ field }) => (
+                      <FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                   )}/>
                   <FormField control={editForm.control} name="dob" render={({ field }) => (
                       <FormItem><FormLabel className="flex items-center"><CalendarIcon className="mr-2 h-4 w-4"/>Date of Birth</FormLabel><FormControl><Input type="date" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
@@ -451,7 +454,10 @@ export default function AdminStudentManagementPage() {
                         <FormItem><FormLabel className="flex items-center"><CalendarIcon className="mr-2 h-4 w-4"/>Date of Birth*</FormLabel><FormControl><Input type="date" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
                     <FormField control={form.control} name="fatherName" render={({ field }) => (
-                        <FormItem><FormLabel>Father/Mother Name*</FormLabel><FormControl><Input placeholder="e.g., Robert Doe" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Father's Name*</FormLabel><FormControl><Input placeholder="e.g., Robert Doe" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
+                    )}/>
+                     <FormField control={form.control} name="motherName" render={({ field }) => (
+                        <FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input placeholder="e.g., Mary Doe" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>
                     )}/>
                     <FormField control={form.control} name="symbolNo" render={({ field }) => (<FormItem><FormLabel>Symbol No.*</FormLabel><FormControl><Input placeholder="e.g., 115520" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="registrationNo" render={({ field }) => (<FormItem><FormLabel>Registration No.*</FormLabel><FormControl><Input placeholder="e.g., 81830100660" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>

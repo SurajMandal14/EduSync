@@ -76,7 +76,8 @@ export default function AdminTeacherManagementPage() {
     defaultValues: { 
         name: "", email: "", password: "", role: 'teacher', classId: "",
         admissionId: undefined, enableBusTransport: false, busRouteLocation: undefined, busClassCategory: undefined,
-        fatherName: undefined, motherName: undefined, dob: undefined, section: undefined, rollNo: undefined, examNo: undefined, aadharNo: undefined
+        fatherName: undefined, motherName: undefined, dob: undefined, section: undefined, rollNo: undefined, aadharNo: undefined,
+        symbolNo: undefined, registrationNo: undefined, district: undefined, gender: undefined, quota: undefined,
     },
   });
 

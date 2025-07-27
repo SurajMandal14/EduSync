@@ -36,6 +36,7 @@ export interface User {
   district?: string;
   gender?: string;
   quota?: string;
+  aadharNo?: string;
 
 
   createdAt: Date | string; // Allow string for client-side
@@ -119,6 +120,7 @@ export const createSchoolUserFormSchema = z.object({
   district: z.string().optional(),
   gender: z.string().optional(),
   quota: z.string().optional(),
+  aadharNo: z.string().optional(),
 }).refine(data => {
   if (data.role === 'student' && (!data.admissionId || data.admissionId.trim() === "")) {
     return false;

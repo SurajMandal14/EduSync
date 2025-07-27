@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,32 +10,61 @@ import { useToast } from '@/hooks/use-toast';
 import { mapStudentData } from '@/ai/flows/map-student-data-flow';
 import type { StudentDataMapping } from '@/ai/flows/map-student-data-flow';
 import { DB_SCHEMA_FIELDS, type StudentDbField } from '@/types/student-import-schema';
+import * as XLSX from 'xlsx';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-// Mock data to simulate reading a CSV/Excel file
-const mockCsvHeaders = ["Student_Name", "Full Name", "admission number", "D.O.B.", "Gender", "Contact Email", "Guardian", "Symbol", "District"];
-const mockCsvSampleData = [
-  ["John Doe", "John Doe", "S1001", "2005-04-12", "Male", "john.doe@example.com", "Robert Doe", "SYM123", "North District"],
-  ["Jane Smith", "Jane Smith", "S1002", "2006-08-22", "Female", "jane.smith@example.com", "Mary Smith", "SYM124", "South District"],
-];
-
-type MappingState = 'idle' | 'loading' | 'mapped' | 'confirmed';
+type MappingState = 'idle' | 'file_loaded' | 'loading_mapping' | 'mapped' | 'confirmed';
 
 export default function StudentImportPage() {
   const { toast } = useToast();
-  const [headers, setHeaders] = useState<string[]>(mockCsvHeaders);
-  const [sampleData, setSampleData] = useState<string[][]>(mockCsvSampleData);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [sampleData, setSampleData] = useState<string[][]>([]);
+  const [fullData, setFullData] = useState<any[]>([]);
   const [mappings, setMappings] = useState<StudentDataMapping>({});
   const [mappingState, setMappingState] = useState<MappingState>('idle');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileLoad = () => {
-    // In a real app, you would use a file parser here (e.g., PapaParse)
-    // For this example, we just use the mock data.
-    toast({
-      title: "File Loaded (Mock)",
-      description: "Headers and sample data are ready.",
-    });
-    setMappingState('idle');
-    setMappings({});
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (json.length < 2) {
+          toast({ variant: 'destructive', title: 'Invalid File', description: 'The spreadsheet must contain at least one header row and one data row.' });
+          return;
+        }
+
+        const extractedHeaders = json[0] as string[];
+        const allRows = json.slice(1) as string[][];
+        const extractedSample = allRows.slice(0, 5); // Take up to 5 samples
+        const jsonDataObjects = XLSX.utils.sheet_to_json(worksheet);
+
+        setHeaders(extractedHeaders);
+        setSampleData(extractedSample);
+        setFullData(jsonDataObjects);
+        setMappingState('file_loaded');
+        setMappings({});
+        toast({ title: 'File Loaded Successfully', description: `${allRows.length} records found in "${file.name}".` });
+      } catch (error) {
+        console.error("File parsing error:", error);
+        toast({ variant: 'destructive', title: 'File Error', description: 'Could not read or parse the file. Please ensure it is a valid Excel or CSV file.' });
+      }
+    };
+    reader.onerror = () => {
+        toast({ variant: 'destructive', title: 'File Error', description: 'There was an error reading the file.' });
+    };
+    reader.readAsBinaryString(file);
   };
 
   const runAiMapping = async () => {
@@ -47,7 +76,7 @@ export default function StudentImportPage() {
       });
       return;
     }
-    setMappingState('loading');
+    setMappingState('loading_mapping');
     try {
       const result = await mapStudentData({ headers, sampleData });
       setMappings(result);
@@ -63,7 +92,7 @@ export default function StudentImportPage() {
         title: 'AI Mapping Failed',
         description: 'An unexpected error occurred. Please try again.',
       });
-      setMappingState('idle');
+      setMappingState('file_loaded');
     }
   };
 
@@ -96,12 +125,21 @@ export default function StudentImportPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex gap-4">
-                <Button onClick={handleFileLoad} variant="outline" disabled={mappingState !== 'idle'}>
-                    <UploadCloud className="mr-2 h-4 w-4" /> Load File (Mock)
-                </Button>
-                <Button onClick={runAiMapping} disabled={headers.length === 0 || mappingState === 'loading' || mappingState === 'mapped'}>
-                    {mappingState === 'loading' ? (
+            <div className="space-y-4">
+                <div>
+                  <Label htmlFor="file-upload">Upload Spreadsheet</Label>
+                  <Input 
+                    id="file-upload" 
+                    type="file" 
+                    ref={fileInputRef}
+                    onChange={handleFileChange} 
+                    accept=".xlsx, .xls, .csv"
+                    className="cursor-pointer file:cursor-pointer"
+                  />
+                  {fileName && <p className="text-sm text-muted-foreground mt-2">Loaded file: {fileName}</p>}
+                </div>
+                <Button onClick={runAiMapping} disabled={mappingState !== 'file_loaded' && mappingState !== 'mapped'}>
+                    {mappingState === 'loading_mapping' ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                         <Wand2 className="mr-2 h-4 w-4" />
@@ -112,7 +150,7 @@ export default function StudentImportPage() {
         </CardContent>
       </Card>
 
-      {mappingState === 'mapped' && (
+      {(mappingState === 'mapped' || mappingState === 'confirmed') && (
         <Card>
           <CardHeader>
             <CardTitle>Review Column Mappings</CardTitle>
@@ -121,25 +159,27 @@ export default function StudentImportPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Your File Column</TableHead>
-                  <TableHead>Sample Data</TableHead>
-                  <TableHead>Database Field</TableHead>
+                  <TableHead className="min-w-[150px]">Your File Column</TableHead>
+                  <TableHead className="min-w-[250px]">Sample Data</TableHead>
+                  <TableHead className="min-w-[200px]">Database Field</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {headers.map((header, index) => (
                   <TableRow key={header}>
                     <TableCell className="font-medium">{header}</TableCell>
-                    <TableCell className="text-muted-foreground truncate max-w-xs">{sampleData.map(row => row[index]).join(', ')}</TableCell>
+                    <TableCell className="text-muted-foreground truncate max-w-xs">{sampleData.map(row => row[index] || '').join(', ')}</TableCell>
                     <TableCell>
                       <Select
                         value={mappings[header] || 'null'}
                         onValueChange={(value: StudentDbField | 'null') => handleMappingChange(header, value)}
+                        disabled={mappingState === 'confirmed'}
                       >
-                        <SelectTrigger className="w-[200px]">
+                        <SelectTrigger>
                           <SelectValue placeholder="Select field" />
                         </SelectTrigger>
                         <SelectContent>
@@ -156,11 +196,14 @@ export default function StudentImportPage() {
                 ))}
               </TableBody>
             </Table>
-            <div className="flex justify-end mt-6">
-                <Button onClick={handleConfirmMappings}>
-                    <CheckCircle className="mr-2 h-4 w-4" /> Confirm Mappings & Proceed
-                </Button>
             </div>
+            {mappingState === 'mapped' && (
+              <div className="flex justify-end mt-6">
+                  <Button onClick={handleConfirmMappings}>
+                      <CheckCircle className="mr-2 h-4 w-4" /> Confirm Mappings & Proceed
+                  </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -173,7 +216,7 @@ export default function StudentImportPage() {
             <CardContent>
                 <p>The next step would be to process the entire file using these mappings and save the data to the database.</p>
                 <pre className="mt-4 p-4 bg-muted rounded-md text-sm overflow-x-auto">
-                    <code>{JSON.stringify({mappings, dataToImport: '... entire dataset ...'}, null, 2)}</code>
+                    <code>{JSON.stringify({mappings, dataToImport: fullData.slice(0, 2)}, null, 2)}...</code>
                 </pre>
             </CardContent>
         </Card>
