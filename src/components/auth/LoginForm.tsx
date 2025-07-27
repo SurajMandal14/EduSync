@@ -51,7 +51,12 @@ export function LoginForm() {
         });
         
         localStorage.setItem('loggedInUser', JSON.stringify(result.user));
-        
+
+        if (result.user.requiresPasswordChange) {
+            sessionStorage.setItem('requiresPasswordChange', 'true');
+        } else {
+            sessionStorage.removeItem('requiresPasswordChange');
+        }
         
         if (result.user.role === 'superadmin') {
           router.push("/dashboard/super-admin");

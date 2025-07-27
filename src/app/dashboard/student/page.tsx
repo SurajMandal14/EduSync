@@ -3,10 +3,12 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Wallet, CalendarCheck, BookMarked, UserCircle, Loader2, ListChecks, RefreshCw, AlertTriangle, Trophy } from "lucide-react";
+import { Wallet, CalendarCheck, BookMarked, UserCircle, Loader2, ListChecks, RefreshCw, AlertTriangle, Trophy, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useStudentData } from '@/contexts/StudentDataContext'; // StudentDataProvider is no longer imported here
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useEffect, useState } from "react";
 
 function StudentDashboardContent() {
   const {
@@ -17,6 +19,22 @@ function StudentDashboardContent() {
     error,
     refreshData
   } = useStudentData();
+  
+  const [showPasswordAlert, setShowPasswordAlert] = useState(false);
+
+  useEffect(() => {
+    // Check if the user needs to change their password
+    const userRequiresPasswordChange = !!sessionStorage.getItem('requiresPasswordChange');
+    if (userRequiresPasswordChange) {
+      setShowPasswordAlert(true);
+    }
+  }, []);
+
+  const handleDismissPasswordAlert = () => {
+    setShowPasswordAlert(false);
+    sessionStorage.removeItem('requiresPasswordChange');
+  };
+
 
   if (isLoading) {
     return (
@@ -60,6 +78,26 @@ function StudentDashboardContent() {
 
   return (
     <div className="space-y-6">
+      {showPasswordAlert && (
+          <Alert variant="destructive" className="relative">
+             <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Security Alert: Change Your Password</AlertTitle>
+            <AlertDescription>
+              You have logged in with a default password. For your security, please change it immediately.
+              <Button asChild variant="link" className="font-bold p-0 pl-1 text-destructive">
+                 <Link href="/dashboard/profile">Go to Profile</Link>
+              </Button>
+            </AlertDescription>
+             <button
+              onClick={handleDismissPasswordAlert}
+              className="absolute top-2 right-2 p-1 rounded-md text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </Alert>
+      )}
+
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>

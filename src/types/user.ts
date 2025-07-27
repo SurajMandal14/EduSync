@@ -1,3 +1,4 @@
+
 // Basic User type definition
 // This will be expanded as we add more user-specific fields.
 
@@ -43,7 +44,7 @@ export interface User {
 }
 
 // Centralized AuthUser type
-export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'admissionId'>;
+export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'admissionId'> & { requiresPasswordChange?: boolean };
 
 
 // Zod schema for Super Admin creating/updating School Admins

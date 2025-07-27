@@ -5,6 +5,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import * as z from 'zod';
 import type { User } from '@/types/user'; 
 import bcrypt from 'bcryptjs'; 
+import { format } from 'date-fns';
 
 const loginSchema = z.object({
   identifier: z.string().min(1, { message: "Email or Admission Number is required." }),
@@ -15,7 +16,7 @@ export interface LoginResult {
   success: boolean;
   error?: string;
   message?: string;
-  user?: Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId'>;
+  user?: Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'admissionId' | 'avatarUrl'> & { requiresPasswordChange?: boolean };
 }
 
 export async function loginUser(values: z.infer<typeof loginSchema>): Promise<LoginResult> {
@@ -31,12 +32,10 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
     let user: User | null = null;
+    let isDefaultPassword = false;
 
-    if (identifier.includes('@')) { // Treat as email
-      // Fetch user by identifier (which is email here). MongoDB findOne is case-sensitive by default for strings.
+    if (identifier.includes('@')) { // Treat as email (for admins, teachers)
       user = await usersCollection.findOne({ email: identifier });
-      // Explicit case-sensitive check if somehow the DB collation makes findOne case-insensitive
-      // This ensures that if "User@example.com" is typed, it only matches if "User@example.com" (exact case) is in the DB.
       if (user && user.email !== identifier) {
          return { error: 'User not found or email case mismatch.', success: false };
       }
@@ -52,12 +51,27 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
       return { error: 'Password not set for this user. Please contact support.', success: false };
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isHashedPasswordValid = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
-      // Fallback for plain text password (e.g., initial superadmin)
+    if (!isHashedPasswordValid) {
+      // Fallback 1: Plain text password (e.g., initial superadmin)
       if (user.password === password) {
-        // Plain text password matches
+        // Plain text password matches, not a default DOB password
+        isDefaultPassword = false; 
+      } 
+      // Fallback 2: Student DOB password
+      else if (user.role === 'student' && user.dob) {
+        try {
+          const dobPassword = format(new Date(user.dob), 'ddMMyyyy');
+          if (password === dobPassword) {
+            isDefaultPassword = true;
+          } else {
+            return { error: 'Invalid password. Please try again.', success: false };
+          }
+        } catch (e) {
+          // Invalid DOB format in DB, so this check fails
+          return { error: 'Invalid password. Please try again.', success: false };
+        }
       } else {
         return { error: 'Invalid password. Please try again.', success: false };
       }
@@ -72,7 +86,10 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
         name: user.name, 
         role: user.role,
         schoolId: user.schoolId?.toString(),
-        classId: user.classId || undefined 
+        classId: user.classId || undefined,
+        admissionId: user.admissionId,
+        avatarUrl: user.avatarUrl,
+        requiresPasswordChange: isDefaultPassword,
       }
     };
 
