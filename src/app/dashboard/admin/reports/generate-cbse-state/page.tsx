@@ -84,7 +84,7 @@ const defaultCoMarksFront: any[] = [];
 const defaultStudentDataFront: FrontStudentData = {
   udiseCodeSchoolName: '', studentName: '', fatherName: '', motherName: '',
   class: '', section: '', studentIdNo: '', rollNo: '', medium: 'English',
-  dob: '', admissionNo: '', examNo: '', aadharNo: '',
+  dob: '', admissionNo: '', aadharNo: '',
 };
 
 const defaultAttendanceDataBack: ReportCardAttendanceMonth[] = Array(11).fill(null).map(() => ({ workingDays: null, presentDays: null }));
@@ -273,7 +273,6 @@ export default function GenerateCBSEStateReportPage() {
             rollNo: loadedStudent.rollNo || '',
             dob: loadedStudent.dob || '',
             admissionNo: loadedStudent.admissionId || '',
-            examNo: loadedStudent.examNo || '',
             aadharNo: loadedStudent.aadharNo || '',
           });
 
@@ -637,6 +636,7 @@ export default function GenerateCBSEStateReportPage() {
 }
     
     
+
 
 
 

@@ -33,7 +33,7 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
     const { 
         name, email, password, role, classId, admissionId, 
         busRouteLocation, busClassCategory,
-        fatherName, motherName, dob, section, rollNo, examNo, aadharNo,
+        fatherName, motherName, dob, section, rollNo,
         symbolNo, registrationNo, district, gender, quota
     } = validatedFields.data;
 
@@ -71,8 +71,7 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
       dob: role === 'student' ? dob : undefined,
       section: role === 'student' ? section : undefined,
       rollNo: role === 'student' ? rollNo : undefined,
-      examNo: role === 'student' ? examNo : undefined,
-      aadharNo: role === 'student' ? aadharNo : undefined,
+      
       symbolNo: role === 'student' ? symbolNo : undefined,
       registrationNo: role === 'student' ? registrationNo : undefined,
       district: role === 'student' ? district : undefined,
@@ -149,8 +148,7 @@ export async function getSchoolUsers(schoolId: string): Promise<GetSchoolUsersRe
         dob: user.dob,
         section: user.section,
         rollNo: user.rollNo,
-        examNo: user.examNo,
-        aadharNo: user.aadharNo,
+        
         symbolNo: user.symbolNo,
         registrationNo: user.registrationNo,
         district: user.district,
@@ -192,7 +190,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     const { 
         name, email, password, role, classId, admissionId, 
         enableBusTransport, busRouteLocation, busClassCategory,
-        fatherName, motherName, dob, section, rollNo, examNo, aadharNo,
+        fatherName, motherName, dob, section, rollNo, aadharNo,
         symbolNo, registrationNo, district, gender, quota
     } = validatedFields.data;
 
@@ -254,8 +252,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         setOperation.dob = dob;
         setOperation.section = section;
         setOperation.rollNo = rollNo;
-        setOperation.examNo = examNo;
-        setOperation.aadharNo = aadharNo;
+        
         setOperation.symbolNo = symbolNo;
         setOperation.registrationNo = registrationNo;
         setOperation.district = district;
@@ -278,8 +275,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         unsetOperation.dob = "";
         unsetOperation.section = "";
         unsetOperation.rollNo = "";
-        unsetOperation.examNo = "";
-        unsetOperation.aadharNo = "";
+        
         unsetOperation.symbolNo = "";
         unsetOperation.registrationNo = "";
         unsetOperation.district = "";
@@ -335,8 +331,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         dob: updatedUserDoc.dob,
         section: updatedUserDoc.section,
         rollNo: updatedUserDoc.rollNo,
-        examNo: updatedUserDoc.examNo,
-        aadharNo: updatedUserDoc.aadharNo,
+        
         symbolNo: updatedUserDoc.symbolNo,
         registrationNo: updatedUserDoc.registrationNo,
         district: updatedUserDoc.district,
@@ -423,8 +418,7 @@ export async function getStudentsByClass(schoolId: string, classId: string): Pro
         dob: student.dob,
         section: student.section,
         rollNo: student.rollNo,
-        examNo: student.examNo,
-        aadharNo: student.aadharNo,
+        
         symbolNo: student.symbolNo,
         registrationNo: student.registrationNo,
         district: student.district,
@@ -515,8 +509,7 @@ export interface StudentDetailsForReportCard {
     dob?: string;
     section?: string;
     rollNo?: string;
-    examNo?: string;
-    aadharNo?: string;
+    
     udiseCodeSchoolName?: string; // Placeholder for school name
     symbolNo?: string;
     registrationNo?: string;
@@ -566,8 +559,7 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
       dob: student.dob,
       section: student.section,
       rollNo: student.rollNo,
-      examNo: student.examNo,
-      aadharNo: student.aadharNo,
+      
       symbolNo: student.symbolNo,
       registrationNo: student.registrationNo,
       district: student.district,

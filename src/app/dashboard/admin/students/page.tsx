@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UploadCloud } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -44,6 +44,7 @@ import type { School, TermFee } from "@/types/school";
 import { useEffect, useState, useCallback } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
+import Link from "next/link";
 
 type SchoolStudent = Partial<AppUser>; 
 
@@ -85,7 +86,7 @@ export default function AdminStudentManagementPage() {
     defaultValues: { 
         name: "", email: "", password: "", admissionId: "", classId: "", 
         enableBusTransport: false, busRouteLocation: "", busClassCategory: "",
-        fatherName: "", motherName: "", dob: "", section: "", rollNo: "", examNo: "", aadharNo: "",
+        fatherName: "", motherName: "", dob: "", section: "", rollNo: "",
         symbolNo: "", registrationNo: "", district: "", gender: "", quota: ""
     },
   });
@@ -95,7 +96,7 @@ export default function AdminStudentManagementPage() {
     defaultValues: { 
         name: "", email: "", password: "", role: 'student', classId: "", admissionId: "", 
         enableBusTransport: false, busRouteLocation: "", busClassCategory: "",
-        fatherName: "", motherName: "", dob: "", section: "", rollNo: "", examNo: "", aadharNo: "",
+        fatherName: "", motherName: "", dob: "", section: "", rollNo: "", aadharNo: "",
         symbolNo: "", registrationNo: "", district: "", gender: "", quota: ""
     },
   });
@@ -254,7 +255,6 @@ export default function AdminStudentManagementPage() {
         dob: editingStudent.dob ? format(new Date(editingStudent.dob), 'yyyy-MM-dd') : "",
         section: editingStudent.section || "",
         rollNo: editingStudent.rollNo || "",
-        examNo: editingStudent.examNo || "",
         aadharNo: editingStudent.aadharNo || "",
         symbolNo: editingStudent.symbolNo || "",
         registrationNo: editingStudent.registrationNo || "",
@@ -369,9 +369,14 @@ export default function AdminStudentManagementPage() {
       </Card>
       
       {!editingStudent && !showAddForm && (
-        <Button onClick={openAddForm}>
-          <UserPlus className="mr-2 h-4 w-4" /> Add New Student
-        </Button>
+        <div className="flex gap-2">
+            <Button onClick={openAddForm}>
+              <UserPlus className="mr-2 h-4 w-4" /> Add New Student
+            </Button>
+            <Button asChild variant="outline">
+                <Link href="/dashboard/admin/students/import"><UploadCloud className="mr-2 h-4 w-4"/>Bulk Import Students</Link>
+            </Button>
+        </div>
       )}
 
       {editingStudent && (

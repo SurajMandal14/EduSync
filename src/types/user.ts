@@ -1,4 +1,5 @@
 
+
 // Basic User type definition
 // This will be expanded as we add more user-specific fields.
 
@@ -28,9 +29,7 @@ export interface User {
   dob?: string; // Store as string for simplicity, can be Date if strict typing needed
   section?: string; // Student's section, potentially derived from class
   rollNo?: string;
-  examNo?: string;
-  aadharNo?: string;
-
+  
   // Fields from image
   symbolNo?: string;
   registrationNo?: string;
@@ -72,10 +71,7 @@ export const createStudentFormSchema = z.object({
   dob: z.string().min(1, { message: "Date of Birth is required." }),
   section: z.string().optional(), 
   rollNo: z.string().optional(),
-  examNo: z.string().optional(),
-  aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), {
-    message: "Aadhar Number must be exactly 12 digits.",
-  }),
+  
   symbolNo: z.string().min(1, { message: "Symbol No. is required." }),
   registrationNo: z.string().min(1, { message: "Registration No. is required." }),
   district: z.string().optional(),
@@ -117,10 +113,7 @@ export const createSchoolUserFormSchema = z.object({
   dob: z.string().optional(),
   section: z.string().optional(),
   rollNo: z.string().optional(),
-  examNo: z.string().optional(),
-  aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), {
-    message: "Aadhar Number must be exactly 12 digits.",
-  }),
+  
   symbolNo: z.string().optional(),
   registrationNo: z.string().optional(),
   district: z.string().optional(),
@@ -155,15 +148,13 @@ export const updateSchoolUserFormSchema = z.object({
   dob: z.string().optional(),
   section: z.string().optional(),
   rollNo: z.string().optional(),
-  examNo: z.string().optional(),
-  aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), {
-    message: "Aadhar Number must be exactly 12 digits.",
-  }),
+  
   symbolNo: z.string().optional(),
   registrationNo: z.string().optional(),
   district: z.string().optional(),
   gender: z.string().optional(),
   quota: z.string().optional(),
+  aadharNo: z.string().optional(),
 }).refine(data => {
   if (data.role === 'student' && data.enableBusTransport && (!data.busRouteLocation || !data.busClassCategory)) {
     return false;
@@ -192,8 +183,7 @@ export interface CreateSchoolUserServerActionFormData {
   dob?: string;
   section?: string; // From class
   rollNo?: string;
-  examNo?: string;
-  aadharNo?: string;
+  
   symbolNo?: string;
   registrationNo?: string;
   district?: string;

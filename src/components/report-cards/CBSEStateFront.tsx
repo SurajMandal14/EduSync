@@ -18,7 +18,7 @@ export interface StudentData {
   medium?: string;
   dob?: string;
   admissionNo?: string;
-  examNo?: string;
+  
   aadharNo?: string;
 }
 
@@ -295,8 +295,9 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <td>Medium: <input type="text" value={studentData.medium || ""} onChange={e => onStudentDataChange('medium', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
               <td>Date of Birth: <input type="text" value={studentData.dob || ""} onChange={e => onStudentDataChange('dob', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              <td>Exam No: <input type="text" value={studentData.examNo || ""} onChange={e => onStudentDataChange('examNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
+              
                <td>Aadhar No: <input type="text" value={studentData.aadharNo || ""} onChange={e => onStudentDataChange('aadharNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
+               <td></td>
             </tr>
             <tr>
               <td colSpan={4}>
@@ -385,4 +386,3 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 };
 
 export default CBSEStateFront;
-
