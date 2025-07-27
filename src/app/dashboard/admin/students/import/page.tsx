@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UploadCloud, Wand2, Loader2, CheckCircle, ArrowRight, Download, Info, AlertTriangle } from 'lucide-react';
+import { UploadCloud, Wand2, Loader2, CheckCircle, ArrowRight, Download, Info, AlertTriangle, BookCopy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { mapStudentData } from '@/ai/flows/map-student-data-flow';
 import type { StudentDataMapping } from '@/ai/flows/map-student-data-flow';
@@ -15,10 +15,16 @@ import * as XLSX from 'xlsx';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { bulkCreateSchoolUsers } from '@/app/actions/schoolUsers';
+import { getClassesForSchoolAsOptions } from '@/app/actions/classes';
 import type { CreateSchoolUserServerActionFormData, AuthUser } from '@/types/user';
 import { format, parse } from 'date-fns';
 
 type MappingState = 'idle' | 'file_loaded' | 'loading_mapping' | 'mapped' | 'importing' | 'imported';
+
+interface ClassOption {
+    value: string;
+    label: string;
+}
 
 export default function StudentImportPage() {
   const { toast } = useToast();
@@ -31,13 +37,24 @@ export default function StudentImportPage() {
   const [mappingState, setMappingState] = useState<MappingState>('idle');
   const [importResult, setImportResult] = useState<{ importedCount: number; skippedCount: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
   
+  const fetchClassOptions = useCallback(async (schoolId: string) => {
+    const options = await getClassesForSchoolAsOptions(schoolId);
+    setClassOptions(options);
+  }, []);
+
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
-        setAuthUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setAuthUser(parsedUser);
+        if (parsedUser?.schoolId) {
+            fetchClassOptions(parsedUser.schoolId);
+        }
     }
-  }, []);
+  }, [fetchClassOptions]);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,7 +79,12 @@ export default function StudentImportPage() {
         const extractedHeaders = (json[0] as any[]).map(String);
         
         const allRowsAsString = (json.slice(1) as any[][]).map(row => 
-          row.map(cell => String(cell ?? ''))
+          row.map(cell => {
+            if (cell instanceof Date) {
+              return format(cell, 'yyyy-MM-dd');
+            }
+            return String(cell ?? '')
+          })
         );
 
         const extractedSample = allRowsAsString.slice(0, 5);
@@ -72,7 +94,12 @@ export default function StudentImportPage() {
         }).map(row => {
             const newRow: {[key: string]: any} = {};
             for (const key in row) {
-                newRow[key] = String((row as any)[key] ?? '');
+                const cell = (row as any)[key];
+                 if (cell instanceof Date) {
+                    newRow[key] = format(cell, 'yyyy-MM-dd');
+                } else {
+                    newRow[key] = String(cell ?? '');
+                }
             }
             return newRow;
         });
@@ -137,6 +164,10 @@ export default function StudentImportPage() {
         toast({ variant: "destructive", title: "Error", description: "Admin school ID not found. Please log in again." });
         return;
     }
+     if (!selectedClassId) {
+        toast({ variant: "destructive", title: "Class Not Selected", description: "Please select a class to import students into." });
+        return;
+    }
     if (Object.values(mappings).every(v => v === null)) {
         toast({ variant: "destructive", title: "No Mappings", description: "At least one column must be mapped to a database field." });
         return;
@@ -160,13 +191,10 @@ export default function StudentImportPage() {
             }
         }
         
-        // This password will be ignored by the backend, which now generates it from DOB
-        studentData.password = "default_password_placeholder"; 
-        
         studentsToImport.push(studentData as CreateSchoolUserServerActionFormData);
     }
     
-    const result = await bulkCreateSchoolUsers(studentsToImport, authUser.schoolId);
+    const result = await bulkCreateSchoolUsers(studentsToImport, authUser.schoolId, selectedClassId);
     if(result.success) {
         toast({ title: "Import Complete", description: result.message });
         setImportResult({ importedCount: result.importedCount, skippedCount: result.skippedCount, errors: result.errors });
@@ -204,9 +232,6 @@ export default function StudentImportPage() {
                         className="sr-only"
                       />
                   </Label>
-                  <Button variant="outline" disabled>
-                      <Download className="mr-2 h-4 w-4"/> Download Template
-                  </Button>
                 </div>
                 {fileName && <p className="text-sm text-muted-foreground mt-2">Loaded file: <span className="font-medium">{fileName}</span> ({fullData.length} records)</p>}
                 
@@ -282,10 +307,23 @@ export default function StudentImportPage() {
             </Table>
             </div>
             {mappingState === 'mapped' && (
-              <div className="flex justify-end mt-6">
-                  <Button onClick={handleProcessAndImport}>
-                      <CheckCircle className="mr-2 h-4 w-4" /> Process & Import Data
-                  </Button>
+              <div className="mt-6 space-y-4">
+                  <div>
+                    <Label htmlFor="class-select" className="flex items-center mb-2"><BookCopy className="mr-2 h-4 w-4 text-muted-foreground"/>Assign to Class</Label>
+                    <Select onValueChange={setSelectedClassId} value={selectedClassId}>
+                        <SelectTrigger id="class-select" className="w-full md:w-1/2">
+                            <SelectValue placeholder="Select a class for all students"/>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {classOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end">
+                      <Button onClick={handleProcessAndImport} disabled={!selectedClassId}>
+                          <CheckCircle className="mr-2 h-4 w-4" /> Process & Import Data
+                      </Button>
+                  </div>
               </div>
             )}
              {mappingState === 'importing' && (

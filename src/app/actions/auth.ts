@@ -16,7 +16,7 @@ export interface LoginResult {
   success: boolean;
   error?: string;
   message?: string;
-  user?: Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'admissionId' | 'avatarUrl'> & { requiresPasswordChange?: boolean };
+  user?: Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'admissionId' | 'avatarUrl' | 'registrationNo'> & { requiresPasswordChange?: boolean };
 }
 
 export async function loginUser(values: z.infer<typeof loginSchema>): Promise<LoginResult> {
@@ -39,8 +39,8 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
       if (user && user.email !== identifier) {
          return { error: 'User not found or email case mismatch.', success: false };
       }
-    } else { // Treat as admission number (only for students)
-      user = await usersCollection.findOne({ admissionId: identifier, role: 'student' });
+    } else { // Treat as registration number (only for students)
+      user = await usersCollection.findOne({ registrationNo: identifier, role: 'student' });
     }
 
     if (!user) {
@@ -88,6 +88,7 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
         schoolId: user.schoolId?.toString(),
         classId: user.classId || undefined,
         admissionId: user.admissionId,
+        registrationNo: user.registrationNo,
         avatarUrl: user.avatarUrl,
         requiresPasswordChange: isDefaultPassword,
       }

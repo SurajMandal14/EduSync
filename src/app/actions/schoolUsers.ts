@@ -46,10 +46,10 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
       return { success: false, message: 'User with this email already exists.', error: 'Email already in use.' };
     }
 
-    if (role === 'student' && admissionId) {
-        const existingUserByAdmissionId = await usersCollection.findOne({ admissionId, schoolId: new ObjectId(schoolId), role: 'student' });
+    if (role === 'student' && registrationNo) {
+        const existingUserByAdmissionId = await usersCollection.findOne({ registrationNo, schoolId: new ObjectId(schoolId), role: 'student' });
         if (existingUserByAdmissionId) {
-            return { success: false, message: `Admission ID '${admissionId}' is already in use for another student in this school.`, error: 'Admission ID already taken.' };
+            return { success: false, message: `Registration No '${registrationNo}' is already in use for another student in this school.`, error: 'Registration No already taken.' };
         }
     }
 
@@ -123,10 +123,14 @@ export interface BulkCreateSchoolUsersResult {
 
 export async function bulkCreateSchoolUsers(
   students: CreateSchoolUserServerActionFormData[],
-  schoolId: string
+  schoolId: string,
+  classId: string
 ): Promise<BulkCreateSchoolUsersResult> {
   if (!ObjectId.isValid(schoolId)) {
     return { success: false, message: 'Invalid School ID.', importedCount: 0, skippedCount: students.length, errors: ['Invalid School ID provided.'] };
+  }
+  if (!ObjectId.isValid(classId)) {
+    return { success: false, message: 'Invalid Class ID.', importedCount: 0, skippedCount: students.length, errors: ['Invalid Class ID provided.'] };
   }
 
   const { db } = await connectToDatabase();
@@ -136,14 +140,14 @@ export async function bulkCreateSchoolUsers(
   const errors: string[] = [];
   let skippedCount = 0;
 
-  // Fetch all existing admission IDs and emails for the school to validate against in memory
-  const existingStudents = await usersCollection.find({ schoolId: new ObjectId(schoolId), role: 'student' }).project({ admissionId: 1, email: 1 }).toArray();
-  const existingAdmissionIds = new Set(existingStudents.map(s => s.admissionId).filter(Boolean));
+  // Fetch all existing registration nos and emails for the school to validate against in memory
+  const existingStudents = await usersCollection.find({ schoolId: new ObjectId(schoolId), role: 'student' }).project({ registrationNo: 1, email: 1 }).toArray();
+  const existingRegistrationNos = new Set(existingStudents.map(s => s.registrationNo).filter(Boolean));
   const existingEmails = new Set(existingStudents.map(s => s.email));
 
   for (const student of students) {
-    const { name, admissionId, dob } = student;
-    let { email } = student;
+    const { name, dob } = student;
+    let { email, registrationNo } = student;
 
     if (!name || !dob) {
       errors.push(`Skipping student '${name || 'N/A'}' due to missing required fields (name, dob).`);
@@ -151,10 +155,14 @@ export async function bulkCreateSchoolUsers(
       continue;
     }
 
-    if (!email && admissionId) {
-      email = `${admissionId}@school.local`; 
-    } else if (!email) {
-      email = `${name.replace(/\s+/g, '.').toLowerCase()}.${Date.now()}@school.local`;
+    if (!registrationNo) {
+        errors.push(`Skipping student '${name}' due to missing Registration Number.`);
+        skippedCount++;
+        continue;
+    }
+
+    if (!email) {
+      email = `${registrationNo}@school.local`; 
     }
 
     if (existingEmails.has(email)) {
@@ -162,8 +170,8 @@ export async function bulkCreateSchoolUsers(
       skippedCount++;
       continue;
     }
-    if (admissionId && existingAdmissionIds.has(admissionId)) {
-      errors.push(`Skipping student '${name}' (${email}): Admission ID '${admissionId}' already exists.`);
+    if (registrationNo && existingRegistrationNos.has(registrationNo)) {
+      errors.push(`Skipping student '${name}' (${email}): Registration No '${registrationNo}' already exists.`);
       skippedCount++;
       continue;
     }
@@ -195,13 +203,14 @@ export async function bulkCreateSchoolUsers(
       role: 'student',
       password: hashedPassword,
       schoolId: new ObjectId(schoolId),
+      classId: classId,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     validStudentsToInsert.push(newStudent);
     // Add to sets to prevent duplicates within the same batch
     existingEmails.add(email);
-    if(admissionId) existingAdmissionIds.add(admissionId);
+    if(registrationNo) existingRegistrationNos.add(registrationNo);
   }
 
   if (validStudentsToInsert.length > 0) {
@@ -214,7 +223,7 @@ export async function bulkCreateSchoolUsers(
   }
 
   const importedCount = validStudentsToInsert.length;
-  let message = `${importedCount} student(s) imported successfully.`;
+  let message = `${importedCount} student(s) imported successfully into the selected class.`;
   if (skippedCount > 0) {
     message += ` ${skippedCount} student(s) were skipped.`;
   }
@@ -321,15 +330,15 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
       return { success: false, message: 'This email is already in use by another account.', error: 'Email already in use.' };
     }
 
-    if (role === 'student' && admissionId && admissionId.trim() !== "") {
-        const existingUserByAdmissionId = await usersCollection.findOne({
-            admissionId,
+    if (role === 'student' && registrationNo && registrationNo.trim() !== "") {
+        const existingUserByRegistrationNo = await usersCollection.findOne({
+            registrationNo,
             schoolId: new ObjectId(schoolId),
             role: 'student',
             _id: { $ne: new ObjectId(userId) as any }
         });
-        if (existingUserByAdmissionId) {
-            return { success: false, message: `Admission ID '${admissionId}' is already in use for another student in this school.`, error: 'Admission ID already taken.' };
+        if (existingUserByRegistrationNo) {
+            return { success: false, message: `Registration No '${registrationNo}' is already in use for another student in this school.`, error: 'Registration No already taken.' };
         }
     }
 
@@ -639,10 +648,10 @@ export interface GetStudentDetailsForReportCardResult {
   message?: string;
 }
 
-export async function getStudentDetailsForReportCard(admissionIdQuery: string, schoolIdQuery: string): Promise<GetStudentDetailsForReportCardResult> {
+export async function getStudentDetailsForReportCard(registrationNoQuery: string, schoolIdQuery: string): Promise<GetStudentDetailsForReportCardResult> {
   try {
-    if (!admissionIdQuery || admissionIdQuery.trim() === "") {
-      return { success: false, message: 'Admission ID cannot be empty.', error: 'Invalid Admission ID.' };
+    if (!registrationNoQuery || registrationNoQuery.trim() === "") {
+      return { success: false, message: 'Registration Number cannot be empty.', error: 'Invalid Registration Number.' };
     }
     if (!ObjectId.isValid(schoolIdQuery)) {
       return { success: false, message: 'Invalid School ID format.', error: 'Invalid School ID.' };
@@ -652,13 +661,13 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     const usersCollection = db.collection<User>('users');
 
     const studentDoc = await usersCollection.findOne({ 
-        admissionId: admissionIdQuery, 
+        registrationNo: registrationNoQuery, 
         schoolId: new ObjectId(schoolIdQuery) as any,
         role: 'student' 
     });
 
     if (!studentDoc) {
-      return { success: false, message: `Student with Admission ID '${admissionIdQuery}' not found in this school.`, error: 'Student not found.' };
+      return { success: false, message: `Student with Registration No '${registrationNoQuery}' not found in this school.`, error: 'Student not found.' };
     }
     
     const student = studentDoc as User; // Type assertion
@@ -685,7 +694,7 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
 
     return { success: true, student: studentDetails };
   } catch (error) {
-    console.error('Get student details for report card by admission ID error:', error);
+    console.error('Get student details for report card by registration number error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, error: errorMessage, message: 'Failed to fetch student details for report card.' };
   }
