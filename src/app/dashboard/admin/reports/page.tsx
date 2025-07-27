@@ -672,7 +672,7 @@ export default function AdminReportsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Student Name</TableHead>
-                    <TableHead>Admission ID</TableHead>
+                    <TableHead>Registration No.</TableHead>
                     <TableHead>Report Exists?</TableHead>
                     <TableHead>Current Status</TableHead>
                   </TableRow>
@@ -681,7 +681,7 @@ export default function AdminReportsPage() {
                   {reportsForBulkPublish.map(report => (
                     <TableRow key={report.studentId}>
                       <TableCell>{report.studentName}</TableCell>
-                      <TableCell>{report.admissionId}</TableCell>
+                      <TableCell>{report.registrationNo}</TableCell>
                        <TableCell className="text-center">
                         {report.hasReport ? <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto" /> : <XCircleIcon className="h-5 w-5 text-red-500 mx-auto" />}
                       </TableCell>

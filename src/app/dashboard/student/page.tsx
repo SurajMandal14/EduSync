@@ -104,7 +104,7 @@ function StudentDashboardContent() {
             <CardTitle className="text-2xl font-headline">Student Dashboard</CardTitle>
             <CardDescription>
               Welcome, {authUser.name}!
-              {authUser.admissionId && ` (Adm. No: ${authUser.admissionId})`}
+              {authUser.registrationNo && ` (Reg. No: ${authUser.registrationNo})`}
               {authUser.classId && ` (Class: ${authUser.classId})`}
             </CardDescription>
           </div>

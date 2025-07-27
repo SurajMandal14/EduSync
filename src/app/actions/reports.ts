@@ -263,7 +263,7 @@ export async function getReportCardsForClass(schoolId: string, classId: string, 
       schoolId: new ObjectId(schoolId),
       classId: classId, 
       role: 'student'
-    }).project({ _id: 1, name: 1, admissionId: 1 }).toArray();
+    }).project({ _id: 1, name: 1, registrationNo: 1 }).toArray();
 
     if (studentsInClass.length === 0) {
       return { success: true, reports: [], message: 'No students found in this class.' };
@@ -283,7 +283,7 @@ export async function getReportCardsForClass(schoolId: string, classId: string, 
         reportId: report?._id.toString() || null,
         studentId: student._id.toString(),
         studentName: student.name,
-        admissionId: student.admissionId || 'N/A',
+        registrationNo: student.registrationNo || 'N/A',
         isPublished: report ? report.isPublished || false : false,
         hasReport: !!report,
       };
@@ -381,7 +381,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     const bulkOps = [];
 
     for (const student of students) {
-      if (!student._id || !student.name || !student.admissionId) continue;
+      if (!student._id || !student.name) continue;
       
       const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, academicYear, classId, 'Annual');
       if (!studentMarksRes.success) {

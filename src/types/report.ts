@@ -84,7 +84,7 @@ export interface BulkPublishReportInfo {
   reportId: string | null;
   studentId: string;
   studentName: string;
-  admissionId?: string;
+  registrationNo?: string;
   isPublished: boolean;
   hasReport: boolean;
 }

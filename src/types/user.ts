@@ -1,5 +1,6 @@
 
 
+
 // Basic User type definition
 // This will be expanded as we add more user-specific fields.
 
@@ -44,7 +45,7 @@ export interface User {
 }
 
 // Centralized AuthUser type
-export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'admissionId'> & { requiresPasswordChange?: boolean };
+export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'registrationNo'> & { requiresPasswordChange?: boolean };
 
 
 // Zod schema for Super Admin creating/updating School Admins
@@ -62,7 +63,7 @@ export const createStudentFormSchema = z.object({
   name: z.string().min(1, { message: "Student Name is required." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  admissionId: z.string().min(1, { message: "Admission ID is required for students."}),
+  admissionId: z.string().optional(),
   classId: z.string().min(1, { message: "Class assignment is required." }), // This will be the class _id
   enableBusTransport: z.boolean().default(false).optional(),
   busRouteLocation: z.string().optional(),
@@ -122,13 +123,13 @@ export const createSchoolUserFormSchema = z.object({
   quota: z.string().optional(),
   aadharNo: z.string().optional(),
 }).refine(data => {
-  if (data.role === 'student' && (!data.admissionId || data.admissionId.trim() === "")) {
+  if (data.role === 'student' && (!data.registrationNo || data.registrationNo.trim() === "")) {
     return false;
   }
   return true;
 }, {
-  message: "Admission ID is required for students and cannot be empty.",
-  path: ["admissionId"],
+  message: "Registration Number is required for students and cannot be empty.",
+  path: ["registrationNo"],
 });
 export type CreateSchoolUserFormData = z.infer<typeof createSchoolUserFormSchema>;
 

@@ -545,7 +545,7 @@ export default function AdminStudentManagementPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email*</FormLabel><FormControl><Input type="email" placeholder="student@example.com" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="password" render={({ field }) => (<FormItem><FormLabel>Password*</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
-                             <FormField control={form.control} name="admissionId" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><SquarePen className="mr-2 h-4 w-4"/>Admission ID*</FormLabel><FormControl><Input placeholder="e.g., S1001" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                             <FormField control={form.control} name="admissionId" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><SquarePen className="mr-2 h-4 w-4"/>Admission ID</FormLabel><FormControl><Input placeholder="e.g., S1001" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="classId" render={({ field }) => ( 
                                 <FormItem>
                                     <FormLabel>Assign to Class*</FormLabel>
@@ -644,4 +644,3 @@ export default function AdminStudentManagementPage() {
     </div>
   );
 }
-

@@ -114,7 +114,7 @@ export default function GenerateCBSEStateReportPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   
-  const [admissionIdInput, setAdmissionIdInput] = useState<string>(""); 
+  const [registrationNoInput, setRegistrationNoInput] = useState<string>(""); 
   const [availableYearsAndTerms, setAvailableYearsAndTerms] = useState<AvailableYearsAndTerms | null>(null);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
   const [selectedTerm, setSelectedTerm] = useState<string>("");
@@ -178,8 +178,8 @@ export default function GenerateCBSEStateReportPage() {
   };
 
   const handleLoadStudentAndClassData = async () => {
-    if (!admissionIdInput.trim()) {
-      toast({ variant: "destructive", title: "Missing Input", description: "Please enter an Admission ID." });
+    if (!registrationNoInput.trim()) {
+      toast({ variant: "destructive", title: "Missing Input", description: "Please enter a Registration Number." });
       return;
     }
     if (!authUser || !authUser.schoolId || !authUser._id) {
@@ -191,10 +191,10 @@ export default function GenerateCBSEStateReportPage() {
     initializeReportState();
     
     try {
-      const studentRes = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId.toString());
+      const studentRes = await getStudentDetailsForReportCard(registrationNoInput, authUser.schoolId.toString());
       
       if (!studentRes.success || !studentRes.student) {
-        toast({ variant: "destructive", title: "Student Not Found", description: studentRes.message || `Could not find student with Admission ID: ${admissionIdInput}.` });
+        toast({ variant: "destructive", title: "Student Not Found", description: studentRes.message || `Could not find student with Registration No: ${registrationNoInput}.` });
         setIsLoadingStudentAndClassData(false);
         return;
       }
@@ -408,7 +408,7 @@ export default function GenerateCBSEStateReportPage() {
   const handlePrint = () => window.print();
   
   const handleResetData = () => {
-    setAdmissionIdInput("");
+    setRegistrationNoInput("");
     initializeReportState();
     toast({ title: "Data Reset", description: "All fields have been reset."});
   }
@@ -505,16 +505,16 @@ export default function GenerateCBSEStateReportPage() {
           </CardTitle>
           <CardDescription>
             Logged in as: <span className="font-semibold capitalize">{authUser?.role || 'N/A'}</span>. 
-            Enter Student's Admission ID to load data.
+            Enter Student's Registration Number to load data.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row gap-2 items-end">
             <div className="w-full sm:w-auto">
-              <Label htmlFor="admissionIdInput" className="mb-1 flex items-center"><User className="mr-2 h-4 w-4 text-muted-foreground"/>Enter Admission ID</Label>
+              <Label htmlFor="registrationNoInput" className="mb-1 flex items-center"><User className="mr-2 h-4 w-4 text-muted-foreground"/>Enter Registration No.</Label>
               <Input 
-                id="admissionIdInput" placeholder="Enter Admission ID" value={admissionIdInput}
-                onChange={(e) => setAdmissionIdInput(e.target.value)} className="w-full sm:min-w-[200px]"
+                id="registrationNoInput" placeholder="Enter Registration No." value={registrationNoInput}
+                onChange={(e) => setRegistrationNoInput(e.target.value)} className="w-full sm:min-w-[200px]"
                 disabled={isLoadingStudentAndClassData || isSaving || isPublishing}
               />
             </div>
@@ -524,7 +524,7 @@ export default function GenerateCBSEStateReportPage() {
                 <Input value={authUser.schoolId.toString()} disabled className="w-full sm:min-w-[180px]" />
               </div>
             }
-            <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || isSaving || isPublishing || !admissionIdInput.trim() || !authUser || !authUser.schoolId}>
+            <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || isSaving || isPublishing || !registrationNoInput.trim() || !authUser || !authUser.schoolId}>
                 {isLoadingStudentAndClassData && !availableYearsAndTerms ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>}
                 Load Student
             </Button>
@@ -612,31 +612,25 @@ export default function GenerateCBSEStateReportPage() {
           </div>
         </>
       )}
-      {!isLoadingStudentAndClassData && !loadedStudent && admissionIdInput && (
+      {!isLoadingStudentAndClassData && !loadedStudent && registrationNoInput && (
           <Card className="no-print border-destructive">
             <CardHeader className="flex-row items-center gap-2">
                 <AlertTriangle className="h-6 w-6 text-destructive"/>
                 <CardTitle className="text-destructive">Student Data Not Loaded</CardTitle>
             </CardHeader>
             <CardContent>
-                <p>Student data could not be loaded for Admission ID: <span className="font-semibold">{admissionIdInput}</span>.</p>
-                <p className="mt-1">Please ensure the Admission ID is correct and the student is properly configured in the system (assigned to a class, etc.).</p>
+                <p>Student data could not be loaded for Registration No: <span className="font-semibold">{registrationNoInput}</span>.</p>
+                <p className="mt-1">Please ensure the Registration Number is correct and the student is properly configured in the system (assigned to a class, etc.).</p>
             </CardContent>
           </Card>
       )}
-       {!isLoadingStudentAndClassData && !loadedStudent && !admissionIdInput && (
+       {!isLoadingStudentAndClassData && !loadedStudent && !registrationNoInput && (
           <Card className="no-print">
             <CardContent className="p-6 text-center">
-                <p className="text-muted-foreground">Enter an Admission ID and click "Load Student" to begin.</p>
+                <p className="text-muted-foreground">Enter a Registration Number and click "Load Student" to begin.</p>
             </CardContent>
           </Card>
       )}
     </div>
   );
 }
-    
-    
-
-
-
-

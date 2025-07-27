@@ -438,7 +438,7 @@ export default function TeacherMarksEntryPage() {
                     <TableRow>
                       <TableHead className="w-12"><Checkbox checked={selectAllCheckboxState} onCheckedChange={handleSelectAllChange}/></TableHead>
                       <TableHead>Student Name</TableHead>
-                      <TableHead>Admission ID</TableHead>
+                      <TableHead>Registration No.</TableHead>
                       {isCurrentAssessmentFA && FA_TOOLS.map(tool => <TableHead key={tool.key} className="w-28 text-center">{tool.label} ({tool.maxMarks}M)</TableHead>)}
                       {isCurrentAssessmentSA && (<><TableHead className="w-36 text-center">P1 Marks</TableHead><TableHead className="w-32 text-center">P1 Max</TableHead><TableHead className="w-36 text-center">P2 Marks</TableHead><TableHead className="w-32 text-center">P2 Max</TableHead></>)}
                       {isNursingTemplate && (<><TableHead className="w-36 text-center">Marks Obtained</TableHead><TableHead className="w-32 text-center">Max Marks</TableHead></>)}
@@ -452,7 +452,7 @@ export default function TeacherMarksEntryPage() {
                         <TableRow key={studentIdStr}>
                           <TableCell><Checkbox checked={!!selectedStudentIds[studentIdStr]} onCheckedChange={(c) => handleStudentSelectionChange(studentIdStr, c)}/></TableCell>
                           <TableCell>{student.name}</TableCell>
-                          <TableCell>{student.admissionId || 'N/A'}</TableCell>
+                          <TableCell>{student.registrationNo || 'N/A'}</TableCell>
                           {isCurrentAssessmentFA && currentMarksState && FA_TOOLS.map(tool => (<TableCell key={tool.key}><Input type="number" value={(currentMarksState as StudentMarksFAState)[tool.key] ?? ""} onChange={e => handleMarksChange(studentIdStr, tool.key, e.target.value)} disabled={isSubmitting} max={(currentMarksState as StudentMarksFAState)[`max${tool.key.charAt(0).toUpperCase() + tool.key.slice(1)}` as keyof StudentMarksFAState] as number} min="0"/></TableCell>))}
                           {isCurrentAssessmentSA && currentMarksState && (<>
                               <TableCell><Input type="number" value={(currentMarksState as StudentMarksSAState)?.p1Marks ?? ""} onChange={e => handleMarksChange(studentIdStr, 'p1Marks', e.target.value)} disabled={isSubmitting} max={(currentMarksState as StudentMarksSAState)?.p1Max ?? defaultMaxMarks} min="0"/></TableCell>
@@ -485,5 +485,3 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
-
-
