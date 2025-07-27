@@ -3,10 +3,13 @@
 
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { ReportCardData, SaveReportCardResult, SetReportCardPublicationStatusResult, GetStudentReportCardResult, BulkPublishReportInfo, ReportCardSASubjectEntry } from '@/types/report'; // Ensure ReportCardSASubjectEntry is imported
+import type { ReportCardData, SaveReportCardResult, SetReportCardPublicationStatusResult, GetStudentReportCardResult, BulkPublishReportInfo, ReportCardSASubjectEntry, FormativeAssessmentEntryForStorage, SAPaperScore, ReportCardAttendanceMonth } from '@/types/report'; // Ensure all types are imported
 import { ObjectId } from 'mongodb';
 import type { User } from '@/types/user'; 
 import { getSchoolById } from './schools'; 
+import { getStudentDetailsForReportCard, getStudentsByClass } from './schoolUsers';
+import { getStudentMarksForReportCard } from './marks';
+import { getClassDetailsById } from './classes';
 
 // Adjusted Zod schema for saving to match the new ReportCardSASubjectEntry structure
 const saPaperScoreSchemaForSave = z.object({
@@ -347,5 +350,157 @@ export async function setReportPublicationStatusForClass(schoolId: string, class
     console.error('Set report publication status for class error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, updatedCount: 0, message: 'An unexpected error occurred.', error: errorMessage };
+  }
+}
+
+export interface BulkGenerateAndPublishResult {
+  success: boolean;
+  message: string;
+  processedCount?: number;
+  error?: string;
+}
+
+// NEW ACTION
+export async function generateAndPublishReportsForClass(schoolId: string, classId: string, academicYear: string, adminId: string, isPublished: boolean): Promise<BulkGenerateAndPublishResult> {
+  try {
+    const { db } = await connectToDatabase();
+
+    const classDetailsRes = await getClassDetailsById(classId, schoolId);
+    if (!classDetailsRes.success || !classDetailsRes.classDetails) {
+      return { success: false, message: classDetailsRes.message || "Could not find class details." };
+    }
+    const classDetails = classDetailsRes.classDetails;
+
+    const studentsRes = await getStudentsByClass(schoolId, classId);
+    if (!studentsRes.success || !studentsRes.users || studentsRes.users.length === 0) {
+      return { success: false, message: studentsRes.message || "No students found in this class." };
+    }
+    const students = studentsRes.users;
+
+    let processedCount = 0;
+    const bulkOps = [];
+
+    for (const student of students) {
+      if (!student._id || !student.name || !student.admissionId) continue;
+      
+      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, academicYear, classId, 'Annual');
+      if (!studentMarksRes.success) {
+        console.warn(`Skipping student ${student.name} due to mark fetching error: ${studentMarksRes.message}`);
+        continue;
+      }
+      const studentMarks = studentMarksRes.marks || [];
+
+      // Re-create the logic from the frontend to process marks
+      const formativeAssessments: FormativeAssessmentEntryForStorage[] = [];
+      const saScores: Record<string, { sa1: SAPaperScore, sa2: SAPaperScore }> = {};
+      
+      classDetails.subjects.forEach(subject => {
+        const faEntry: FormativeAssessmentEntryForStorage = {
+          subjectName: subject.name,
+          fa1: { tool1: null, tool2: null, tool3: null, tool4: null },
+          fa2: { tool1: null, tool2: null, tool3: null, tool4: null },
+          fa3: { tool1: null, tool2: null, tool3: null, tool4: null },
+          fa4: { tool1: null, tool2: null, tool3: null, tool4: null },
+        };
+        studentMarks.filter(m => m.subjectName === subject.name && m.assessmentName.startsWith('FA')).forEach(m => {
+          const [, faPeriod, tool] = m.assessmentName.match(/(FA\d)-(Tool\d)/) || [];
+          if (faPeriod && tool) {
+            (faEntry[faPeriod.toLowerCase() as keyof typeof faEntry] as any)[tool.toLowerCase()] = m.marksObtained;
+          }
+        });
+        formativeAssessments.push(faEntry);
+
+        saScores[subject.name] = {
+          sa1: { marks: null, maxMarks: 80 },
+          sa2: { marks: null, maxMarks: 80 }
+        };
+        studentMarks.filter(m => m.subjectName === subject.name && m.assessmentName.startsWith('SA')).forEach(m => {
+          if (m.assessmentName.startsWith('SA1')) saScores[subject.name].sa1 = { marks: m.marksObtained, maxMarks: m.maxMarks };
+          if (m.assessmentName.startsWith('SA2')) saScores[subject.name].sa2 = { marks: m.marksObtained, maxMarks: m.maxMarks };
+        });
+      });
+
+      const getFaTotal = (subjectName: string) => {
+        const faData = formativeAssessments.find(f => f.subjectName === subjectName);
+        if (!faData) return 0;
+        let total = 0;
+        (['fa1', 'fa2', 'fa3', 'fa4'] as const).forEach(fa => {
+            const period = faData[fa];
+            total += (period.tool1 || 0) + (period.tool2 || 0) + (period.tool3 || 0) + (period.tool4 || 0);
+        });
+        return total;
+      };
+
+      const summativeAssessments: ReportCardSASubjectEntry[] = [];
+      classDetails.subjects.forEach(subject => {
+          const papers = subject.name === "Science" ? ["Physics", "Biology"] : ["I", "II"];
+          papers.forEach(paper => {
+              summativeAssessments.push({
+                  subjectName: subject.name,
+                  paper: paper,
+                  sa1: saScores[subject.name]?.sa1 || { marks: null, maxMarks: 80 },
+                  sa2: saScores[subject.name]?.sa2 || { marks: null, maxMarks: 80 },
+                  faTotal200M: getFaTotal(subject.name),
+              });
+          });
+      });
+
+      const reportPayload: Omit<ReportCardData, '_id'> = {
+        studentId: student._id.toString(),
+        schoolId: new ObjectId(schoolId),
+        academicYear,
+        reportCardTemplateKey: 'cbse_state',
+        studentInfo: {
+          studentName: student.name,
+          fatherName: student.fatherName,
+          motherName: student.motherName,
+          class: classDetails.name,
+          section: classDetails.section,
+          studentIdNo: student._id.toString(),
+          rollNo: student.rollNo,
+          admissionNo: student.admissionId,
+          dob: student.dob,
+        },
+        formativeAssessments,
+        summativeAssessments,
+        coCurricularAssessments: [],
+        attendance: Array(11).fill(null).map(() => ({ workingDays: null, presentDays: null })),
+        finalOverallGrade: null,
+        generatedByAdminId: new ObjectId(adminId),
+        isPublished,
+        term: 'Annual',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      bulkOps.push({
+        updateOne: {
+          filter: {
+            studentId: student._id.toString(),
+            schoolId: new ObjectId(schoolId),
+            academicYear: academicYear,
+            reportCardTemplateKey: 'cbse_state',
+            term: 'Annual',
+          },
+          update: { $set: reportPayload },
+          upsert: true
+        }
+      });
+      processedCount++;
+    }
+
+    if (bulkOps.length > 0) {
+      await db.collection('report_cards').bulkWrite(bulkOps);
+    }
+    
+    return { 
+      success: true, 
+      processedCount,
+      message: `${processedCount} report cards were successfully generated and ${isPublished ? 'published' : 'saved as drafts'}.` 
+    };
+  } catch(error) {
+    console.error('Bulk generate and publish error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    return { success: false, message: 'An unexpected error occurred during bulk processing.', error: errorMessage };
   }
 }

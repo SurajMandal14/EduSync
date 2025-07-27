@@ -20,7 +20,7 @@ import type { User as AppUser } from "@/types/user";
 import type { School, TermFee } from "@/types/school";
 import type { FeePayment } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
-import { getReportCardsForClass, setReportPublicationStatusForClass } from "@/app/actions/reports"; // Added new actions
+import { getReportCardsForClass, setReportPublicationStatusForClass, generateAndPublishReportsForClass } from "@/app/actions/reports"; // Added new actions
 import type { BulkPublishReportInfo } from "@/types/report"; // Added type
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; // For class dropdown
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
@@ -560,33 +560,30 @@ export default function AdminReportsPage() {
     if (result.success && result.reports) {
       setReportsForBulkPublish(result.reports);
       if (result.reports.length === 0) {
-        toast({title: "No Reports Found", description: "No existing report cards found for this class and academic year to publish."});
+        toast({title: "No Students Found", description: "No students found in this class for the selected academic year."});
       }
     } else {
-      toast({variant: "destructive", title: "Error Loading Reports", description: result.message || "Could not load reports."});
+      toast({variant: "destructive", title: "Error Loading Reports", description: result.message || "Could not load report statuses."});
       setReportsForBulkPublish([]);
     }
     setIsLoadingBulkReports(false);
   };
 
-  const handleBulkPublishAction = async (publish: boolean) => {
-    if (!authUser?.schoolId || !selectedClassForBulkPublish || !academicYearForBulkPublish || reportsForBulkPublish.length === 0) {
-      toast({ variant: "destructive", title: "Error", description: "No reports loaded or selection missing."});
+  const handleBulkAction = async (publish: boolean) => {
+    if (!authUser?.schoolId || !authUser?._id || !selectedClassForBulkPublish || !academicYearForBulkPublish) {
+      toast({ variant: "destructive", title: "Error", description: "Required information is missing to perform this action."});
       return;
     }
     setIsBulkPublishing(true);
-    const result = await setReportPublicationStatusForClass(authUser.schoolId.toString(), selectedClassForBulkPublish, academicYearForBulkPublish, publish);
+    const result = await generateAndPublishReportsForClass(authUser.schoolId.toString(), selectedClassForBulkPublish, academicYearForBulkPublish, authUser._id.toString(), publish);
     if (result.success) {
-      toast({ title: "Bulk Update Successful", description: result.message});
-      // Refresh the list
-      handleLoadReportsForBulkPublish();
+      toast({ title: "Bulk Action Successful", description: result.message});
+      handleLoadReportsForBulkPublish(); // Refresh the list
     } else {
-      toast({variant: "destructive", title: "Bulk Update Failed", description: result.message || "Could not update report statuses."});
+      toast({variant: "destructive", title: "Bulk Action Failed", description: result.message || "Could not perform bulk action."});
     }
     setIsBulkPublishing(false);
   };
-
-  const reportsThatExistCount = reportsForBulkPublish.filter(r => r.hasReport).length;
 
 
   return (
@@ -627,8 +624,8 @@ export default function AdminReportsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Bulk Report Card Publishing</CardTitle>
-          <CardDescription>Publish or unpublish existing, generated report cards for a selected class and academic year.</CardDescription>
+          <CardTitle>Bulk Report Card Generation & Publishing</CardTitle>
+          <CardDescription>Generate, save, and publish report cards for an entire class at once. This will overwrite any existing reports for the selected year.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 items-end">
@@ -648,7 +645,7 @@ export default function AdminReportsPage() {
               <Input id="bulk-academic-year" value={academicYearForBulkPublish} onChange={(e) => setAcademicYearForBulkPublish(e.target.value)} placeholder="YYYY-YYYY" disabled={isLoadingBulkReports || isBulkPublishing}/>
             </div>
             <Button onClick={handleLoadReportsForBulkPublish} disabled={isLoadingBulkReports || isBulkPublishing || !selectedClassForBulkPublish || !academicYearForBulkPublish.match(/^\d{4}-\d{4}$/)}>
-              {isLoadingBulkReports ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Users className="mr-2 h-4 w-4"/>} Load Reports
+              {isLoadingBulkReports ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Users className="mr-2 h-4 w-4"/>} Load Student Status
             </Button>
           </div>
 
@@ -656,19 +653,19 @@ export default function AdminReportsPage() {
             <div className="space-y-3 mt-4">
               <div className="flex gap-2">
                 <Button
-                  onClick={() => handleBulkPublishAction(true)}
-                  disabled={isBulkPublishing || reportsThatExistCount === 0}
+                  onClick={() => handleBulkAction(true)}
+                  disabled={isBulkPublishing}
                   variant="default"
                   className="bg-green-600 hover:bg-green-700"
                 >
-                  {isBulkPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldCheck className="mr-2 h-4 w-4"/>} Publish All ({reportsThatExistCount})
+                  {isBulkPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldCheck className="mr-2 h-4 w-4"/>} Generate & Publish All
                 </Button>
                 <Button
-                  onClick={() => handleBulkPublishAction(false)}
-                  disabled={isBulkPublishing || reportsThatExistCount === 0}
+                  onClick={() => handleBulkAction(false)}
+                  disabled={isBulkPublishing}
                   variant="destructive"
                 >
-                  {isBulkPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldOff className="mr-2 h-4 w-4"/>} Unpublish All ({reportsThatExistCount})
+                  {isBulkPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldOff className="mr-2 h-4 w-4"/>} Generate & Unpublish All
                 </Button>
               </div>
               <Table>
@@ -704,7 +701,7 @@ export default function AdminReportsPage() {
           )}
            {isLoadingBulkReports && <div className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/> Loading student report statuses...</div>}
            {!isLoadingBulkReports && reportsForBulkPublish.length === 0 && selectedClassForBulkPublish && (
-                <p className="text-center text-muted-foreground py-4">No reports found for the selected class and year, or no students in class.</p>
+                <p className="text-center text-muted-foreground py-4">No students found for the selected class and year.</p>
             )}
         </CardContent>
       </Card>
