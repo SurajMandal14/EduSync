@@ -21,24 +21,23 @@ export async function mapStudentData(
   return mapStudentDataFlow(input);
 }
 
-const mapStudentDataFlow = ai.defineFlow(
-  {
-    name: 'mapStudentDataFlow',
-    inputSchema: studentImportInputSchema,
-    outputSchema: studentImportOutputSchema,
-  },
-  async ({ headers, sampleData }) => {
-    const prompt = `
+const mappingPrompt = ai.definePrompt({
+  name: 'mapStudentDataPrompt',
+  input: { schema: studentImportInputSchema },
+  output: { schema: studentImportOutputSchema },
+  prompt: `
       You are an intelligent data mapping assistant for a school management system. Your task is to map the columns from a user's uploaded spreadsheet to the predefined database schema fields.
 
       Here are the available database fields:
       ${DB_SCHEMA_FIELDS.map(f => `- "${f.value}" (Represents: ${f.label})`).join('\n')}
       
       Here are the headers from the user's spreadsheet:
-      ${headers.join(', ')}
+      {{headers}}
 
       Here are a few sample rows of their data to give you context:
-      ${sampleData.map(row => row.join(', ')).join('\n')}
+      {{#each sampleData as |row|}}
+      {{#each row as |cell|}}{{cell}}, {{/each}}
+      {{/each}}
 
       Based on the headers and the sample data, create a JSON object that maps each header from the user's spreadsheet to the most appropriate database field.
 
@@ -48,26 +47,29 @@ const mapStudentDataFlow = ai.defineFlow(
       3. Be intelligent with the mapping. For example, if a header is "Student_Name", "full name", or "student", it should map to "name". "D.O.B." should map to "dob". "admission number" should map to "admissionId".
       4. If a column from the spreadsheet does not correspond to any available database field, its value in the JSON object should be \`null\`. Do not try to force a mapping.
       5. Ensure the final output is only the JSON object, with no extra text or explanations.
-    `;
+    `,
+  config: {
+    temperature: 0.1, // Lower temperature for more deterministic mapping
+  },
+});
 
-    const { output } = await ai.generate({
-      prompt: prompt,
-      config: {
-        temperature: 0.1, // Lower temperature for more deterministic mapping
-      },
-    });
-
-    if (!output) {
-      throw new Error('AI failed to generate a mapping.');
-    }
-
+const mapStudentDataFlow = ai.defineFlow(
+  {
+    name: 'mapStudentDataFlow',
+    inputSchema: studentImportInputSchema,
+    outputSchema: studentImportOutputSchema,
+  },
+  async (input) => {
     try {
-      const jsonString = output.replace(/```json\n?|\n?```/g, '');
-      const parsedOutput = JSON.parse(jsonString);
-      return studentImportOutputSchema.parse(parsedOutput);
-    } catch (e) {
-      console.error("Failed to parse AI output:", e, "Raw output:", output);
-      throw new Error("AI returned an invalid JSON object.");
+        const { output } = await mappingPrompt(input);
+        if (!output) {
+            throw new Error('AI failed to generate a mapping.');
+        }
+        return output;
+    } catch(e) {
+        console.error("Error in mapStudentDataFlow:", e);
+        // Throw a more specific error or handle it as needed
+        throw new Error("Failed to get a valid mapping from the AI model.");
     }
   }
 );
