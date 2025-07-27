@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UploadCloud, Wand2, Loader2, CheckCircle, ArrowRight } from 'lucide-react';
+import { UploadCloud, Wand2, Loader2, CheckCircle, ArrowRight, Download, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { mapStudentData } from '@/ai/flows/map-student-data-flow';
 import type { StudentDataMapping } from '@/ai/flows/map-student-data-flow';
@@ -45,17 +45,33 @@ export default function StudentImportPage() {
           return;
         }
 
-        const extractedHeaders = json[0] as string[];
-        const allRows = json.slice(1) as string[][];
-        const extractedSample = allRows.slice(0, 5); // Take up to 5 samples
-        const jsonDataObjects = XLSX.utils.sheet_to_json(worksheet);
+        const extractedHeaders = (json[0] as any[]).map(String);
+        
+        // Ensure all data is converted to string to prevent type errors
+        const allRowsAsString = (json.slice(1) as any[][]).map(row => 
+          row.map(cell => String(cell ?? ''))
+        );
+
+        const extractedSample = allRowsAsString.slice(0, 5);
+        
+        // For processing, it's better to have objects with consistent string values too
+        const jsonDataObjects = XLSX.utils.sheet_to_json(worksheet, {
+            raw: false, // This ensures dates are formatted as strings, not numbers
+        }).map(row => {
+            const newRow: {[key: string]: any} = {};
+            for (const key in row) {
+                newRow[key] = String((row as any)[key] ?? '');
+            }
+            return newRow;
+        });
+
 
         setHeaders(extractedHeaders);
         setSampleData(extractedSample);
         setFullData(jsonDataObjects);
         setMappingState('file_loaded');
         setMappings({});
-        toast({ title: 'File Loaded Successfully', description: `${allRows.length} records found in "${file.name}".` });
+        toast({ title: 'File Loaded Successfully', description: `${allRowsAsString.length} records found in "${file.name}".` });
       } catch (error) {
         console.error("File parsing error:", error);
         toast({ variant: 'destructive', title: 'File Error', description: 'Could not read or parse the file. Please ensure it is a valid Excel or CSV file.' });
@@ -126,26 +142,46 @@ export default function StudentImportPage() {
         </CardHeader>
         <CardContent>
             <div className="space-y-4">
-                <div>
-                  <Label htmlFor="file-upload">Upload Spreadsheet</Label>
-                  <Input 
-                    id="file-upload" 
-                    type="file" 
-                    ref={fileInputRef}
-                    onChange={handleFileChange} 
-                    accept=".xlsx, .xls, .csv"
-                    className="cursor-pointer file:cursor-pointer"
-                  />
-                  {fileName && <p className="text-sm text-muted-foreground mt-2">Loaded file: {fileName}</p>}
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                  <Label htmlFor="file-upload" className="w-full sm:w-auto">
+                      <Button asChild className="w-full sm:w-auto cursor-pointer">
+                          <span><UploadCloud className="mr-2 h-4 w-4" /> Upload Spreadsheet</span>
+                      </Button>
+                      <Input 
+                        id="file-upload" 
+                        type="file" 
+                        ref={fileInputRef}
+                        onChange={handleFileChange} 
+                        accept=".xlsx, .xls, .csv"
+                        className="sr-only"
+                      />
+                  </Label>
+                  <Button variant="outline" disabled>
+                      <Download className="mr-2 h-4 w-4"/> Download Template
+                  </Button>
                 </div>
-                <Button onClick={runAiMapping} disabled={mappingState !== 'file_loaded' && mappingState !== 'mapped'}>
-                    {mappingState === 'loading_mapping' ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
+                {fileName && <p className="text-sm text-muted-foreground mt-2">Loaded file: <span className="font-medium">{fileName}</span> ({fullData.length} records)</p>}
+                
+                {mappingState === 'idle' && !fileName && (
+                    <div className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg mt-4">
+                        <Info className="h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mt-2">Upload a file to get started.</p>
+                    </div>
+                )}
+                
+                {mappingState === 'file_loaded' && (
+                     <Button onClick={runAiMapping} className="mt-4">
                         <Wand2 className="mr-2 h-4 w-4" />
-                    )}
-                    Run AI Mapping
-                </Button>
+                        Run AI Mapping
+                    </Button>
+                )}
+                 {mappingState === 'loading_mapping' && (
+                     <Button onClick={runAiMapping} className="mt-4" disabled>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Analyzing Columns...
+                    </Button>
+                )}
+
             </div>
         </CardContent>
       </Card>
