@@ -112,6 +112,89 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
   }
 }
 
+export interface BulkCreateSchoolUsersResult {
+  success: boolean;
+  message: string;
+  importedCount: number;
+  skippedCount: number;
+  errors: string[];
+}
+
+export async function bulkCreateSchoolUsers(
+  students: CreateSchoolUserServerActionFormData[],
+  schoolId: string
+): Promise<BulkCreateSchoolUsersResult> {
+  if (!ObjectId.isValid(schoolId)) {
+    return { success: false, message: 'Invalid School ID.', importedCount: 0, skippedCount: students.length, errors: ['Invalid School ID provided.'] };
+  }
+
+  const { db } = await connectToDatabase();
+  const usersCollection = db.collection('users');
+  
+  const validStudentsToInsert: Omit<User, '_id'>[] = [];
+  const errors: string[] = [];
+  let skippedCount = 0;
+
+  // Fetch all existing admission IDs and emails for the school to validate against in memory
+  const existingStudents = await usersCollection.find({ schoolId: new ObjectId(schoolId), role: 'student' }).project({ admissionId: 1, email: 1 }).toArray();
+  const existingAdmissionIds = new Set(existingStudents.map(s => s.admissionId).filter(Boolean));
+  const existingEmails = new Set(existingStudents.map(s => s.email));
+
+  for (const student of students) {
+    const { name, email, password, admissionId } = student;
+    if (!name || !email || !password || !admissionId) {
+      errors.push(`Skipping student with email '${email || 'N/A'}' due to missing required fields (name, email, password, admissionId).`);
+      skippedCount++;
+      continue;
+    }
+    if (existingEmails.has(email)) {
+      errors.push(`Skipping student '${name}' (${email}): Email already exists.`);
+      skippedCount++;
+      continue;
+    }
+    if (existingAdmissionIds.has(admissionId)) {
+      errors.push(`Skipping student '${name}' (${email}): Admission ID '${admissionId}' already exists.`);
+      skippedCount++;
+      continue;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newStudent: Omit<User, '_id'> = {
+      ...student,
+      role: 'student',
+      password: hashedPassword,
+      schoolId: new ObjectId(schoolId),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    validStudentsToInsert.push(newStudent);
+    // Add to sets to prevent duplicates within the same batch
+    existingEmails.add(email);
+    existingAdmissionIds.add(admissionId);
+  }
+
+  if (validStudentsToInsert.length > 0) {
+    try {
+      await usersCollection.insertMany(validStudentsToInsert);
+    } catch (error) {
+      console.error("Bulk insert failed:", error);
+      return { success: false, message: 'A database error occurred during bulk insertion.', importedCount: 0, skippedCount: students.length, errors: [...errors, 'Failed to write to database.'] };
+    }
+  }
+
+  const importedCount = validStudentsToInsert.length;
+  let message = `${importedCount} student(s) imported successfully.`;
+  if (skippedCount > 0) {
+    message += ` ${skippedCount} student(s) were skipped.`;
+  }
+  
+  revalidatePath('/dashboard/admin/students');
+  revalidatePath('/dashboard/admin/users');
+
+  return { success: true, message, importedCount, skippedCount, errors };
+}
+
+
 export interface GetSchoolUsersResult {
   success: boolean;
   users?: Partial<User>[];

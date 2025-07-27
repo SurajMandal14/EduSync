@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef } from 'react';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UploadCloud, Wand2, Loader2, CheckCircle, ArrowRight, Download, Info } from 'lucide-react';
+import { UploadCloud, Wand2, Loader2, CheckCircle, ArrowRight, Download, Info, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { mapStudentData } from '@/ai/flows/map-student-data-flow';
 import type { StudentDataMapping } from '@/ai/flows/map-student-data-flow';
@@ -13,18 +14,31 @@ import { DB_SCHEMA_FIELDS, type StudentDbField } from '@/types/student-import-sc
 import * as XLSX from 'xlsx';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { bulkCreateSchoolUsers } from '@/app/actions/schoolUsers';
+import type { CreateSchoolUserServerActionFormData, AuthUser } from '@/types/user';
+import { format, parse } from 'date-fns';
 
-type MappingState = 'idle' | 'file_loaded' | 'loading_mapping' | 'mapped' | 'confirmed';
+type MappingState = 'idle' | 'file_loaded' | 'loading_mapping' | 'mapped' | 'importing' | 'imported';
 
 export default function StudentImportPage() {
   const { toast } = useToast();
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [sampleData, setSampleData] = useState<string[][]>([]);
   const [fullData, setFullData] = useState<any[]>([]);
   const [mappings, setMappings] = useState<StudentDataMapping>({});
   const [mappingState, setMappingState] = useState<MappingState>('idle');
+  const [importResult, setImportResult] = useState<{ importedCount: number; skippedCount: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  useState(() => {
+    const storedUser = localStorage.getItem('loggedInUser');
+    if (storedUser) {
+        setAuthUser(JSON.parse(storedUser));
+    }
+  });
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -35,7 +49,7 @@ export default function StudentImportPage() {
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
+        const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
@@ -47,16 +61,19 @@ export default function StudentImportPage() {
 
         const extractedHeaders = (json[0] as any[]).map(String);
         
-        // Ensure all data is converted to string to prevent type errors
         const allRowsAsString = (json.slice(1) as any[][]).map(row => 
-          row.map(cell => String(cell ?? ''))
+          row.map(cell => {
+            if(cell instanceof Date) {
+              return format(cell, 'yyyy-MM-dd');
+            }
+            return String(cell ?? '');
+          })
         );
 
         const extractedSample = allRowsAsString.slice(0, 5);
         
-        // For processing, it's better to have objects with consistent string values too
         const jsonDataObjects = XLSX.utils.sheet_to_json(worksheet, {
-            raw: false, // This ensures dates are formatted as strings, not numbers
+            raw: false, 
         }).map(row => {
             const newRow: {[key: string]: any} = {};
             for (const key in row) {
@@ -71,6 +88,7 @@ export default function StudentImportPage() {
         setFullData(jsonDataObjects);
         setMappingState('file_loaded');
         setMappings({});
+        setImportResult(null);
         toast({ title: 'File Loaded Successfully', description: `${allRowsAsString.length} records found in "${file.name}".` });
       } catch (error) {
         console.error("File parsing error:", error);
@@ -119,14 +137,57 @@ export default function StudentImportPage() {
     }));
   };
 
-  const handleConfirmMappings = () => {
-    // Here you would proceed with the import logic using the confirmed mappings.
-    // This could involve transforming the full dataset and sending it to a bulk import server action.
-    setMappingState('confirmed');
-    toast({
-        title: "Mappings Confirmed!",
-        description: "Ready to import data. (Import logic not implemented in this demo)."
-    });
+  const handleProcessAndImport = async () => {
+    if (!authUser?.schoolId) {
+        toast({ variant: "destructive", title: "Error", description: "Admin school ID not found. Please log in again." });
+        return;
+    }
+    if (Object.values(mappings).every(v => v === null)) {
+        toast({ variant: "destructive", title: "No Mappings", description: "At least one column must be mapped to a database field." });
+        return;
+    }
+    setMappingState('importing');
+
+    const studentsToImport: CreateSchoolUserServerActionFormData[] = [];
+    const reverseMappings: { [key: string]: string } = {};
+    for(const key in mappings) {
+        if(mappings[key]) {
+            reverseMappings[mappings[key]!] = key;
+        }
+    }
+
+    for (const row of fullData) {
+        const studentData: Partial<CreateSchoolUserServerActionFormData> = { role: 'student' };
+        for (const dbField of DB_SCHEMA_FIELDS) {
+            const fileHeader = reverseMappings[dbField.value];
+            if (fileHeader && row[fileHeader]) {
+                (studentData as any)[dbField.value] = row[fileHeader];
+            }
+        }
+        
+        // Generate default password from DOB
+        if (studentData.dob) {
+          try {
+            // Handle various common date formats
+            const parsedDate = parse(studentData.dob, 'yyyy-MM-dd', new Date());
+            if(!isNaN(parsedDate.getTime())){
+                studentData.password = format(parsedDate, 'ddMMyyyy');
+            }
+          } catch(e) { /* ignore parse error, password will be undefined */ }
+        }
+        
+        studentsToImport.push(studentData as CreateSchoolUserServerActionFormData);
+    }
+    
+    const result = await bulkCreateSchoolUsers(studentsToImport, authUser.schoolId);
+    if(result.success) {
+        toast({ title: "Import Complete", description: result.message });
+        setImportResult({ importedCount: result.importedCount, skippedCount: result.skippedCount, errors: result.errors });
+    } else {
+        toast({ variant: 'destructive', title: "Import Failed", description: result.message });
+        setImportResult({ importedCount: 0, skippedCount: fullData.length, errors: result.errors.length > 0 ? result.errors : ["An unknown error occurred during import."] });
+    }
+    setMappingState('imported');
   }
 
   return (
@@ -186,12 +247,12 @@ export default function StudentImportPage() {
         </CardContent>
       </Card>
 
-      {(mappingState === 'mapped' || mappingState === 'confirmed') && (
+      {(mappingState === 'mapped' || mappingState === 'importing' || mappingState === 'imported') && (
         <Card>
           <CardHeader>
             <CardTitle>Review Column Mappings</CardTitle>
             <CardDescription>
-              The AI has proposed the following mappings from your file to the database. Please review and correct them if necessary.
+              The AI has proposed the following mappings. Review and correct them if necessary.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -213,7 +274,7 @@ export default function StudentImportPage() {
                       <Select
                         value={mappings[header] || 'null'}
                         onValueChange={(value: StudentDbField | 'null') => handleMappingChange(header, value)}
-                        disabled={mappingState === 'confirmed'}
+                        disabled={mappingState === 'importing' || mappingState === 'imported'}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select field" />
@@ -235,25 +296,47 @@ export default function StudentImportPage() {
             </div>
             {mappingState === 'mapped' && (
               <div className="flex justify-end mt-6">
-                  <Button onClick={handleConfirmMappings}>
-                      <CheckCircle className="mr-2 h-4 w-4" /> Confirm Mappings & Proceed
+                  <Button onClick={handleProcessAndImport}>
+                      <CheckCircle className="mr-2 h-4 w-4" /> Process & Import Data
+                  </Button>
+              </div>
+            )}
+             {mappingState === 'importing' && (
+              <div className="flex justify-end mt-6">
+                  <Button disabled>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importing... Please wait.
                   </Button>
               </div>
             )}
           </CardContent>
         </Card>
       )}
-
-      {mappingState === 'confirmed' && (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center text-green-600"><CheckCircle className="mr-2 h-6 w-6"/> Mappings Confirmed</CardTitle>
+      
+      {mappingState === 'imported' && importResult && (
+        <Card className={importResult.errors.length > 0 ? "border-destructive" : "border-green-500"}>
+             <CardHeader>
+                <CardTitle className={`flex items-center ${importResult.errors.length > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                    <CheckCircle className="mr-2 h-6 w-6"/> Import Complete
+                </CardTitle>
             </CardHeader>
-            <CardContent>
-                <p>The next step would be to process the entire file using these mappings and save the data to the database.</p>
-                <pre className="mt-4 p-4 bg-muted rounded-md text-sm overflow-x-auto">
-                    <code>{JSON.stringify({mappings, dataToImport: fullData.slice(0, 2)}, null, 2)}...</code>
-                </pre>
+            <CardContent className="space-y-4">
+               <div>
+                  <p><strong>Successfully Imported:</strong> {importResult.importedCount}</p>
+                  <p><strong>Skipped Records:</strong> {importResult.skippedCount}</p>
+               </div>
+               {importResult.errors.length > 0 && (
+                <div>
+                    <h4 className="font-semibold text-destructive flex items-center"><AlertTriangle className="mr-2 h-4 w-4"/>Errors & Warnings:</h4>
+                    <ul className="list-disc pl-5 mt-2 text-sm text-destructive max-h-40 overflow-y-auto">
+                        {importResult.errors.map((error, index) => (
+                            <li key={index}>{error}</li>
+                        ))}
+                    </ul>
+                </div>
+               )}
+                <Button onClick={() => fileInputRef.current && (fileInputRef.current.value = '') & setMappingState('idle') & setFileName(null)}>
+                    Import Another File
+                </Button>
             </CardContent>
         </Card>
       )}
