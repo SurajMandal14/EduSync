@@ -145,14 +145,16 @@ export async function bulkCreateSchoolUsers(
     const { name, admissionId, dob } = student;
     let { email } = student;
 
-    if (!name || !admissionId || !dob) {
-      errors.push(`Skipping student with Admission ID '${admissionId || 'N/A'}' due to missing required fields (name, admissionId, dob).`);
+    if (!name || !dob) {
+      errors.push(`Skipping student '${name || 'N/A'}' due to missing required fields (name, dob).`);
       skippedCount++;
       continue;
     }
 
-    if (!email) {
+    if (!email && admissionId) {
       email = `${admissionId}@school.local`; 
+    } else if (!email) {
+      email = `${name.replace(/\s+/g, '.').toLowerCase()}.${Date.now()}@school.local`;
     }
 
     if (existingEmails.has(email)) {
@@ -160,7 +162,7 @@ export async function bulkCreateSchoolUsers(
       skippedCount++;
       continue;
     }
-    if (existingAdmissionIds.has(admissionId)) {
+    if (admissionId && existingAdmissionIds.has(admissionId)) {
       errors.push(`Skipping student '${name}' (${email}): Admission ID '${admissionId}' already exists.`);
       skippedCount++;
       continue;
@@ -199,7 +201,7 @@ export async function bulkCreateSchoolUsers(
     validStudentsToInsert.push(newStudent);
     // Add to sets to prevent duplicates within the same batch
     existingEmails.add(email);
-    existingAdmissionIds.add(admissionId);
+    if(admissionId) existingAdmissionIds.add(admissionId);
   }
 
   if (validStudentsToInsert.length > 0) {
@@ -690,3 +692,5 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
 }
 
   
+
+    
