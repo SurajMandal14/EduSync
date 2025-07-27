@@ -33,7 +33,8 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
     const { 
         name, email, password, role, classId, admissionId, 
         busRouteLocation, busClassCategory,
-        fatherName, motherName, dob, section, rollNo, examNo, aadharNo // New fields
+        fatherName, motherName, dob, section, rollNo, examNo, aadharNo,
+        symbolNo, registrationNo, district, gender, quota
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -72,6 +73,11 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
       rollNo: role === 'student' ? rollNo : undefined,
       examNo: role === 'student' ? examNo : undefined,
       aadharNo: role === 'student' ? aadharNo : undefined,
+      symbolNo: role === 'student' ? symbolNo : undefined,
+      registrationNo: role === 'student' ? registrationNo : undefined,
+      district: role === 'student' ? district : undefined,
+      gender: role === 'student' ? gender : undefined,
+      quota: role === 'student' ? quota : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -145,6 +151,11 @@ export async function getSchoolUsers(schoolId: string): Promise<GetSchoolUsersRe
         rollNo: user.rollNo,
         examNo: user.examNo,
         aadharNo: user.aadharNo,
+        symbolNo: user.symbolNo,
+        registrationNo: user.registrationNo,
+        district: user.district,
+        gender: user.gender,
+        quota: user.quota,
         createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : undefined,
         updatedAt: user.updatedAt ? new Date(user.updatedAt).toISOString() : undefined,
       };
@@ -181,7 +192,8 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     const { 
         name, email, password, role, classId, admissionId, 
         enableBusTransport, busRouteLocation, busClassCategory,
-        fatherName, motherName, dob, section, rollNo, examNo, aadharNo
+        fatherName, motherName, dob, section, rollNo, examNo, aadharNo,
+        symbolNo, registrationNo, district, gender, quota
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -244,6 +256,11 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         setOperation.rollNo = rollNo;
         setOperation.examNo = examNo;
         setOperation.aadharNo = aadharNo;
+        setOperation.symbolNo = symbolNo;
+        setOperation.registrationNo = registrationNo;
+        setOperation.district = district;
+        setOperation.gender = gender;
+        setOperation.quota = quota;
         
         if (enableBusTransport && busRouteLocation && busClassCategory) {
             setOperation.busRouteLocation = busRouteLocation;
@@ -263,6 +280,11 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         unsetOperation.rollNo = "";
         unsetOperation.examNo = "";
         unsetOperation.aadharNo = "";
+        unsetOperation.symbolNo = "";
+        unsetOperation.registrationNo = "";
+        unsetOperation.district = "";
+        unsetOperation.gender = "";
+        unsetOperation.quota = "";
     }
     
     const updateQuery: any = {};
@@ -315,6 +337,11 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         rollNo: updatedUserDoc.rollNo,
         examNo: updatedUserDoc.examNo,
         aadharNo: updatedUserDoc.aadharNo,
+        symbolNo: updatedUserDoc.symbolNo,
+        registrationNo: updatedUserDoc.registrationNo,
+        district: updatedUserDoc.district,
+        gender: updatedUserDoc.gender,
+        quota: updatedUserDoc.quota,
         createdAt: updatedUserDoc.createdAt ? new Date(updatedUserDoc.createdAt).toISOString() : undefined,
         updatedAt: updatedUserDoc.updatedAt ? new Date(updatedUserDoc.updatedAt).toISOString() : undefined,
       }
@@ -398,6 +425,11 @@ export async function getStudentsByClass(schoolId: string, classId: string): Pro
         rollNo: student.rollNo,
         examNo: student.examNo,
         aadharNo: student.aadharNo,
+        symbolNo: student.symbolNo,
+        registrationNo: student.registrationNo,
+        district: student.district,
+        gender: student.gender,
+        quota: student.quota,
         createdAt: student.createdAt ? new Date(student.createdAt).toISOString() : undefined,
         updatedAt: student.updatedAt ? new Date(student.updatedAt).toISOString() : undefined,
       };
@@ -486,6 +518,11 @@ export interface StudentDetailsForReportCard {
     examNo?: string;
     aadharNo?: string;
     udiseCodeSchoolName?: string; // Placeholder for school name
+    symbolNo?: string;
+    registrationNo?: string;
+    district?: string;
+    gender?: string;
+    quota?: string;
 }
 export interface GetStudentDetailsForReportCardResult {
   success: boolean;
@@ -531,6 +568,11 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
       rollNo: student.rollNo,
       examNo: student.examNo,
       aadharNo: student.aadharNo,
+      symbolNo: student.symbolNo,
+      registrationNo: student.registrationNo,
+      district: student.district,
+      gender: student.gender,
+      quota: student.quota,
     };
 
     return { success: true, student: studentDetails };

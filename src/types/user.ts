@@ -1,4 +1,3 @@
-
 // Basic User type definition
 // This will be expanded as we add more user-specific fields.
 
@@ -31,6 +30,14 @@ export interface User {
   examNo?: string;
   aadharNo?: string;
 
+  // Fields from image
+  symbolNo?: string;
+  registrationNo?: string;
+  district?: string;
+  gender?: string;
+  quota?: string;
+
+
   createdAt: Date | string; // Allow string for client-side
   updatedAt: Date | string; // Allow string for client-side
 }
@@ -51,7 +58,7 @@ export type SchoolAdminFormData = z.infer<typeof schoolAdminFormSchema>;
 
 // Zod schema for admin creating students
 export const createStudentFormSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  name: z.string().min(1, { message: "Student Name is required." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   admissionId: z.string().min(1, { message: "Admission ID is required for students."}),
@@ -59,16 +66,20 @@ export const createStudentFormSchema = z.object({
   enableBusTransport: z.boolean().default(false).optional(),
   busRouteLocation: z.string().optional(),
   busClassCategory: z.string().optional(),
-  // New fields for student
-  fatherName: z.string().optional(),
+  fatherName: z.string().min(1, { message: "Father/Mother Name is required." }),
   motherName: z.string().optional(),
-  dob: z.string().optional(), 
-  section: z.string().optional(), // Section might be auto-populated based on class
+  dob: z.string().min(1, { message: "Date of Birth is required." }),
+  section: z.string().optional(), 
   rollNo: z.string().optional(),
   examNo: z.string().optional(),
   aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), {
     message: "Aadhar Number must be exactly 12 digits.",
   }),
+  symbolNo: z.string().min(1, { message: "Symbol No. is required." }),
+  registrationNo: z.string().min(1, { message: "Registration No. is required." }),
+  district: z.string().optional(),
+  gender: z.string().optional(),
+  quota: z.string().optional(),
 }).refine(data => {
   if (data.enableBusTransport && (!data.busRouteLocation || !data.busClassCategory)) {
     return false;
@@ -91,7 +102,7 @@ export type CreateTeacherFormData = z.infer<typeof createTeacherFormSchema>;
 
 // Generic Zod schema for admin creating school users (teachers, students) - used by server action
 export const createSchoolUserFormSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  name: z.string().min(1, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   role: z.enum(['teacher', 'student'], { required_error: "Role is required." }),
@@ -109,6 +120,11 @@ export const createSchoolUserFormSchema = z.object({
   aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), {
     message: "Aadhar Number must be exactly 12 digits.",
   }),
+  symbolNo: z.string().optional(),
+  registrationNo: z.string().optional(),
+  district: z.string().optional(),
+  gender: z.string().optional(),
+  quota: z.string().optional(),
 }).refine(data => {
   if (data.role === 'student' && (!data.admissionId || data.admissionId.trim() === "")) {
     return false;
@@ -142,6 +158,11 @@ export const updateSchoolUserFormSchema = z.object({
   aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), {
     message: "Aadhar Number must be exactly 12 digits.",
   }),
+  symbolNo: z.string().optional(),
+  registrationNo: z.string().optional(),
+  district: z.string().optional(),
+  gender: z.string().optional(),
+  quota: z.string().optional(),
 }).refine(data => {
   if (data.role === 'student' && data.enableBusTransport && (!data.busRouteLocation || !data.busClassCategory)) {
     return false;
@@ -172,6 +193,11 @@ export interface CreateSchoolUserServerActionFormData {
   rollNo?: string;
   examNo?: string;
   aadharNo?: string;
+  symbolNo?: string;
+  registrationNo?: string;
+  district?: string;
+  gender?: string;
+  quota?: string;
 }
 
 
