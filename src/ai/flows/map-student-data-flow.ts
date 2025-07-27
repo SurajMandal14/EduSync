@@ -60,16 +60,10 @@ const mapStudentDataFlow = ai.defineFlow(
     outputSchema: studentImportOutputSchema,
   },
   async (input) => {
-    try {
-        const { output } = await mappingPrompt(input);
-        if (!output) {
-            throw new Error('AI failed to generate a mapping.');
-        }
-        return output;
-    } catch(e) {
-        console.error("Error in mapStudentDataFlow:", e);
-        // Throw a more specific error or handle it as needed
-        throw new Error("Failed to get a valid mapping from the AI model.");
+    const { output } = await mappingPrompt(input);
+    if (!output) {
+      throw new Error('AI failed to generate a mapping.');
     }
+    return output;
   }
 );
