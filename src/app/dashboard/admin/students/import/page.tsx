@@ -69,7 +69,7 @@ export default function StudentImportPage() {
         const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }); // Use defval to handle empty cells
         
         if (json.length < 2) {
           toast({ variant: 'destructive', title: 'Invalid File', description: 'The spreadsheet must contain at least one header row and one data row.' });
@@ -78,12 +78,13 @@ export default function StudentImportPage() {
 
         const extractedHeaders = (json[0] as any[]).map(String);
         
+        // Ensure all data, including from empty cells, is treated as a string
         const allRowsAsString = (json.slice(1) as any[][]).map(row => 
           row.map(cell => {
             if (cell instanceof Date) {
               return format(cell, 'yyyy-MM-dd');
             }
-            return String(cell ?? '')
+            return String(cell ?? ''); // Convert null/undefined to empty string
           })
         );
 
@@ -91,6 +92,7 @@ export default function StudentImportPage() {
         
         const jsonDataObjects = XLSX.utils.sheet_to_json(worksheet, {
             raw: false, 
+            defval: "" // Ensure empty cells are read as empty strings
         }).map(row => {
             const newRow: {[key: string]: any} = {};
             for (const key in row) {
@@ -368,5 +370,3 @@ export default function StudentImportPage() {
     </div>
   );
 }
-
-  
