@@ -6,13 +6,27 @@ import { useParams } from 'next/navigation';
 import { getPaymentById } from '@/app/actions/fees';
 import { getSchoolById } from '@/app/actions/schools'; 
 import { getStudentDetailsForReportCard } from '@/app/actions/schoolUsers';
+import { getFeePaymentsByStudent } from '@/app/actions/fees';
+import { getFeeConcessionsForSchool } from '@/app/actions/concessions';
 import type { FeePayment } from '@/types/fees';
 import type { School } from '@/types/school';
 import type { User } from '@/types/user';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
-import NursingCollege, { type NursingStudentInfo } from '@/components/report-cards/NursingCollege';
+import NursingCollege, { type NursingStudentInfo, type NursingFeeSummary } from '@/components/report-cards/NursingCollege';
+
+const getCurrentAcademicYear = (): string => {
+  const today = new Date();
+  const currentMonth = today.getMonth(); 
+  const currentYear = today.getFullYear();
+  if (currentMonth >= 5) { 
+    return `${currentYear}-${currentYear + 1}`;
+  } else { 
+    return `${currentYear - 1}-${currentYear}`;
+  }
+};
+
 
 export default function NursingFeeReceiptPage() {
   const params = useParams();
@@ -21,8 +35,23 @@ export default function NursingFeeReceiptPage() {
   const [payment, setPayment] = useState<FeePayment | null>(null);
   const [school, setSchool] = useState<School | null>(null);
   const [student, setStudent] = useState<Partial<User> | null>(null);
+  const [feeSummary, setFeeSummary] = useState<NursingFeeSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const calculateAnnualTuitionFee = useCallback((className: string | undefined, schoolConfig: School | null): number => {
+    if (!className || !schoolConfig || !schoolConfig.tuitionFees) return 0;
+    const classFeeConfig = schoolConfig.tuitionFees.find(cf => cf.className === className);
+    if (!classFeeConfig || !classFeeConfig.terms) return 0;
+    return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
+  }, []);
+
+  const calculateAnnualBusFee = useCallback((student: Partial<User> | null, schoolConfig: School | null): number => {
+    if (!student || !student.busRouteLocation || !student.busClassCategory || !schoolConfig || !schoolConfig.busFeeStructures) return 0;
+    const feeConfig = schoolConfig.busFeeStructures.find(bfs => bfs.location === student.busRouteLocation && bfs.classCategory === student.busClassCategory);
+    if (!feeConfig || !feeConfig.terms) return 0;
+    return feeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
+  }, []);
 
   const fetchReceiptData = useCallback(async () => {
     if (!paymentId) {
@@ -34,39 +63,58 @@ export default function NursingFeeReceiptPage() {
     setError(null);
     try {
       const paymentResult = await getPaymentById(paymentId);
-      if (paymentResult.success && paymentResult.payment) {
-        const currentPayment = paymentResult.payment;
-        setPayment(currentPayment);
-        
-        const [schoolResult, studentResult] = await Promise.all([
-            getSchoolById(currentPayment.schoolId.toString()),
-            getStudentDetailsForReportCard(currentPayment.studentId.toString(), currentPayment.schoolId.toString())
-        ]);
-
-        if (schoolResult.success && schoolResult.school) {
-          setSchool(schoolResult.school);
-        } else {
-          setError(schoolResult.message || "Could not load school details.");
-        }
-        
-        if (studentResult.success && studentResult.student) {
-            setStudent(studentResult.student);
-        } else {
-            // Fallback to name from payment if direct student fetch fails
-            setStudent({ name: currentPayment.studentName, classId: currentPayment.classId });
-        }
-
-      } else {
-        setError(paymentResult.message || "Could not load payment details.");
-        setPayment(null);
+      if (!paymentResult.success || !paymentResult.payment) {
+          setError(paymentResult.message || "Could not load payment details.");
+          setPayment(null);
+          setIsLoading(false);
+          return;
       }
+
+      const currentPayment = paymentResult.payment;
+      setPayment(currentPayment);
+      
+      const [schoolResult, studentResult, allPaymentsResult, concessionsResult] = await Promise.all([
+          getSchoolById(currentPayment.schoolId.toString()),
+          // Use getStudentDetailsForReportCard to fetch full student details
+          getStudentDetailsForReportCard(currentPayment.studentId.toString(), currentPayment.schoolId.toString()),
+          getFeePaymentsByStudent(currentPayment.studentId.toString(), currentPayment.schoolId.toString()),
+          getFeeConcessionsForSchool(currentPayment.studentId.toString(), currentPayment.schoolId.toString(), getCurrentAcademicYear())
+      ]);
+
+      if (!schoolResult.success || !schoolResult.school) {
+        setError(schoolResult.message || "Could not load school details.");
+        setIsLoading(false); return;
+      }
+      const currentSchool = schoolResult.school;
+      setSchool(currentSchool);
+
+      if (!studentResult.success || !studentResult.student) {
+        setError(studentResult.message || "Could not load student details.");
+        setIsLoading(false); return;
+      }
+      const currentStudent = studentResult.student;
+      setStudent(currentStudent);
+      
+      const totalAnnualTuition = calculateAnnualTuitionFee(currentStudent.classId, currentSchool);
+      const totalAnnualBusFee = calculateAnnualBusFee(currentStudent, currentSchool);
+      const totalPaid = (allPaymentsResult.payments || []).reduce((sum, p) => sum + p.amountPaid, 0);
+      const totalConcessions = (concessionsResult.concessions || []).reduce((sum, c) => sum + c.amount, 0);
+
+      setFeeSummary({
+        totalAnnualTuition,
+        totalAnnualBusFee,
+        totalConcessions,
+        totalPaid,
+        amountOfThisPayment: currentPayment.amountPaid,
+      });
+
     } catch (e) {
       console.error("Fetch receipt data error:", e);
       setError("An unexpected error occurred while fetching receipt data.");
     } finally {
       setIsLoading(false);
     }
-  }, [paymentId]);
+  }, [paymentId, calculateAnnualTuitionFee, calculateAnnualBusFee]);
 
   useEffect(() => {
     fetchReceiptData();
@@ -98,7 +146,7 @@ export default function NursingFeeReceiptPage() {
     );
   }
 
-  if (!payment || !school || !student) {
+  if (!payment || !school || !student || !feeSummary) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-muted p-4 text-center">
         <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
@@ -111,23 +159,14 @@ export default function NursingFeeReceiptPage() {
   
   const studentInfoForTemplate: NursingStudentInfo = {
     schoolName: school.schoolName,
-    schoolAddress: (school as any).address || 'Mirchaiya-7, Siraha', // Placeholder
+    schoolAddress: (school as any).address || 'Mirchaiya-7, Siraha', 
     studentName: student.name,
     symbolNo: student.symbolNo,
-    course: student.classId,
-    // Add other fields from your student/school type as needed
+    course: student.classId, 
+    quota: student.quota,
+    address: student.district, 
+    photoUrl: (student as any).avatarUrl,
   };
-  
-  // NOTE: This receipt shows dummy fee breakdown as we don't store line items per payment.
-  const dummyMarks = [
-      { subject: 'Admission Fee', totalMarks: 0, passingMarks: 0, obtainMarks: 0 },
-      { subject: 'Refundable Fee', totalMarks: 0, passingMarks: 0, obtainMarks: payment.amountPaid },
-      { subject: 'Registration Fee', totalMarks: 0, passingMarks: 0, obtainMarks: 0 },
-      { subject: 'Transportation Fee', totalMarks: 0, passingMarks: 0, obtainMarks: 60000 },
-      { subject: 'Dress Fee', totalMarks: 0, passingMarks: 0, obtainMarks: 15000 },
-      { subject: 'Book Fee', totalMarks: 0, passingMarks: 0, obtainMarks: 11000 },
-      { subject: 'Hostel Fee', totalMarks: 0, passingMarks: 0, obtainMarks: 156000 },
-  ];
 
   return (
     <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">
@@ -140,7 +179,7 @@ export default function NursingFeeReceiptPage() {
       `}</style>
       <Card className="w-full max-w-2xl shadow-xl printable-receipt-container print:shadow-none print:border-none">
         <CardContent className="p-0">
-          <NursingCollege studentInfo={studentInfoForTemplate} marks={dummyMarks} />
+          <NursingCollege studentInfo={studentInfoForTemplate} feeSummary={feeSummary} />
         </CardContent>
       </Card>
       <div className="mt-8 flex gap-4 no-print w-full max-w-2xl">
@@ -154,5 +193,3 @@ export default function NursingFeeReceiptPage() {
     </div>
   );
 }
-
-    

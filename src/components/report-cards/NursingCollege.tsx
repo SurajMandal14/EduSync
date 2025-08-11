@@ -3,6 +3,7 @@
 
 import React from 'react';
 
+// Updated interfaces to reflect real, calculated data
 export interface NursingStudentInfo {
   regNo?: string;
   email?: string;
@@ -16,28 +17,32 @@ export interface NursingStudentInfo {
   photoUrl?: string;
 }
 
-export interface NursingMarksEntry {
-  subject: string;
-  totalMarks: number; // Represents the amount for this line item
-  passingMarks: number; // Not used in fee slip, can be 0
-  obtainMarks: number; // Not used in fee slip, can be 0
+export interface NursingFeeSummary {
+  totalAnnualTuition: number;
+  totalAnnualBusFee: number;
+  totalConcessions: number;
+  totalPaid: number;
+  amountOfThisPayment: number;
 }
 
 interface NursingFeeSlipProps {
   studentInfo: NursingStudentInfo;
-  marks: NursingMarksEntry[]; // Re-using marks structure for line items
+  feeSummary: NursingFeeSummary;
 }
 
-const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, marks }) => {
-  const collageFees = marks.filter(m => ['Admission Fee', 'Refundable Fee', 'Registration Fee'].includes(m.subject));
-  const extraFees = marks.filter(m => ['Transpotation Fee', 'Dress Fee', 'Book Fee', 'Hostel Fee'].includes(m.subject));
+const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, feeSummary }) => {
 
-  const getTotal = (items: NursingMarksEntry[]) => items.reduce((sum, item) => sum + item.totalMarks, 0);
+  const {
+    totalAnnualTuition,
+    totalAnnualBusFee,
+    totalConcessions,
+    totalPaid,
+    amountOfThisPayment,
+  } = feeSummary;
 
-  const totalCollageFee = getTotal(collageFees);
-  const totalExtraFee = getTotal(extraFees);
-  const totalPayAmount = marks.find(m => m.subject === 'Refundable Fee')?.totalMarks || 0; // As per image
-  const totalFeeAmount = totalCollageFee + totalExtraFee;
+  const totalApplicableFees = totalAnnualTuition + totalAnnualBusFee;
+  const netPayable = totalApplicableFees - totalConcessions;
+  const balanceDue = netPayable - totalPaid;
 
   return (
     <>
@@ -87,15 +92,9 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, mar
           font-weight: bold;
           width: 100px;
         }
-        .fees-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 15px;
-        }
         .fees-table th, .fees-table td {
           border: 1px solid #000;
-          padding: 5px;
+          padding: 6px 8px; /* Increased padding */
           text-align: left;
         }
         .fees-table th {
@@ -107,17 +106,18 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, mar
         .fees-table .amount {
             text-align: right;
             font-family: monospace;
+            font-weight: bold;
         }
         .fees-table .total-row {
             font-weight: bold;
         }
         .summary-table {
-            margin-top: -1px;
-            border-top: none !important;
+            margin-top: 15px;
         }
         .summary-table td {
              background-color: #90EE90;
              font-weight: bold;
+             font-size: 14px;
         }
         .footer-signatures {
             margin-top: 40px;
@@ -131,7 +131,7 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, mar
           <h1>{studentInfo.schoolName || 'Mirchaiya Health Nursing Campus Pvt.Ltd'}</h1>
           <p>{studentInfo.schoolAddress || 'Mirchaiya-7, Siraha'}</p>
         </div>
-        <div className="title-bar">Collage Fee Slip</div>
+        <div className="title-bar">College Fee Slip</div>
         
         <table className="info-table">
             <tbody>
@@ -145,11 +145,11 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, mar
                     <td className="label">Quota</td>
                     <td>{studentInfo.quota || 'Classified'}</td>
                     <td className="label">Course</td>
-                    <td>{studentInfo.course || 'PCL (NURSING)'}</td>
+                    <td>{studentInfo.course}</td>
                 </tr>
                  <tr>
-                    <td className="label">Adree</td>
-                    <td>{studentInfo.address || 'Besishahar-1, Lamjung'}</td>
+                    <td className="label">Address</td>
+                    <td>{studentInfo.address}</td>
                     <td className="label">Photo</td>
                     <td rowSpan={2} style={{verticalAlign: 'top', textAlign:'center'}}>
                         {studentInfo.photoUrl ? <img src={studentInfo.photoUrl} alt="student" width="75" height="90" data-ai-hint="student photo"/> : <div style={{width: '75px', height: '90px', border: '1px solid #ccc', margin: 'auto', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', color:'#999'}}>Photo</div>}
@@ -159,49 +159,22 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, mar
             </tbody>
         </table>
 
-        <div className="fees-grid">
-            <div>
-                <table className="fees-table">
-                    <thead><tr><th colSpan={2}>Collage Fee</th></tr></thead>
-                    <tbody>
-                        {collageFees.map(item => (
-                            <tr key={item.subject}>
-                                <td>{item.subject}</td>
-                                <td className="amount">{item.totalMarks > 0 ? item.totalMarks.toLocaleString() : '-'}</td>
-                            </tr>
-                        ))}
-                        <tr className="total-row"><td>Total Pay Amount</td><td className="amount">{totalPayAmount > 0 ? totalPayAmount.toLocaleString() : '-'}</td></tr>
-                        <tr className="total-row"><td>Total Collage Fee</td><td className="amount">{totalCollageFee.toLocaleString()}</td></tr>
-                        <tr className="total-row"><td>Dues Amount</td><td className="amount">-</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div>
-                 <table className="fees-table">
-                    <thead><tr><th colSpan={2}>Extra Fee</th></tr></thead>
-                    <tbody>
-                        {extraFees.map(item => (
-                            <tr key={item.subject}>
-                                <td>{item.subject}</td>
-                                <td className="amount">{item.totalMarks > 0 ? item.totalMarks.toLocaleString() : '-'}</td>
-                            </tr>
-                        ))}
-                         <tr className="total-row"><td>Total Extra Fee</td><td className="amount">{totalExtraFee.toLocaleString()}</td></tr>
-                         <tr className="total-row"><td>Dues Amount</td><td className="amount">-</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
         <table className="fees-table summary-table">
+            <thead>
+                <tr>
+                    <th>Fee Description</th>
+                    <th className='amount'>Amount (NPR)</th>
+                </tr>
+            </thead>
             <tbody>
-                <tr>
-                    <td className="total-row">Total Fee Amount</td>
-                    <td className="amount total-row">{totalFeeAmount.toLocaleString()}</td>
-                </tr>
-                <tr>
-                    <td className="total-row">Total Dues Amount</td>
-                    <td className="amount total-row">-</td>
-                </tr>
+                <tr><td>Annual Tuition Fee</td><td className="amount">{totalAnnualTuition.toLocaleString()}</td></tr>
+                <tr><td>Annual Bus Fee</td><td className="amount">{totalAnnualBusFee.toLocaleString()}</td></tr>
+                <tr className="total-row"><td>Total Applicable Fee</td><td className="amount">{totalApplicableFees.toLocaleString()}</td></tr>
+                <tr><td>(-) Concessions</td><td className="amount">{totalConcessions > 0 ? `-${totalConcessions.toLocaleString()}` : '-'}</td></tr>
+                <tr className="total-row"><td>Net Payable Amount</td><td className="amount">{netPayable.toLocaleString()}</td></tr>
+                <tr><td>Amount Paid (This Transaction)</td><td className="amount">{amountOfThisPayment.toLocaleString()}</td></tr>
+                <tr><td>Cumulative Amount Paid</td><td className="amount">{totalPaid.toLocaleString()}</td></tr>
+                <tr className="total-row" style={{backgroundColor: '#90EE90'}}><td>Balance Due</td><td className="amount">{balanceDue.toLocaleString()}</td></tr>
             </tbody>
         </table>
 
@@ -215,5 +188,3 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, mar
 };
 
 export default NursingCollegeFeeSlip;
-
-    
