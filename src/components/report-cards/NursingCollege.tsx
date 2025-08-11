@@ -114,7 +114,7 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, fee
         .summary-table {
             margin-top: 15px;
         }
-        .summary-table td {
+        .final-summary-row td {
              background-color: #90EE90;
              font-weight: bold;
              font-size: 14px;
@@ -169,12 +169,18 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, fee
             <tbody>
                 <tr><td>Annual Tuition Fee</td><td className="amount">{totalAnnualTuition.toLocaleString()}</td></tr>
                 <tr><td>Annual Bus Fee</td><td className="amount">{totalAnnualBusFee.toLocaleString()}</td></tr>
-                <tr className="total-row"><td>Total Applicable Fee</td><td className="amount">{totalApplicableFees.toLocaleString()}</td></tr>
                 <tr><td>(-) Concessions</td><td className="amount">{totalConcessions > 0 ? `-${totalConcessions.toLocaleString()}` : '-'}</td></tr>
                 <tr className="total-row"><td>Net Payable Amount</td><td className="amount">{netPayable.toLocaleString()}</td></tr>
                 <tr><td>Amount Paid (This Transaction)</td><td className="amount">{amountOfThisPayment.toLocaleString()}</td></tr>
                 <tr><td>Cumulative Amount Paid</td><td className="amount">{totalPaid.toLocaleString()}</td></tr>
-                <tr className="total-row" style={{backgroundColor: '#90EE90'}}><td>Balance Due</td><td className="amount">{balanceDue.toLocaleString()}</td></tr>
+                <tr className="final-summary-row">
+                    <td>Total Fee Amount</td>
+                    <td className="amount">{totalApplicableFees.toLocaleString()}</td>
+                </tr>
+                <tr className="final-summary-row">
+                    <td>Total Dues Amount</td>
+                    <td className="amount">{balanceDue.toLocaleString()}</td>
+                </tr>
             </tbody>
         </table>
 
