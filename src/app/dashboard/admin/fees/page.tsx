@@ -10,27 +10,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent } from "lucide-react"; // Added BadgePercent
+import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
 import type { User as AppUser } from "@/types/user";
-import type { School, TermFee } from "@/types/school";
+import type { School, TermFee, ReportCardTemplateKey } from "@/types/school";
 import type { FeePayment, FeePaymentPayload } from "@/types/fees";
-import type { FeeConcession } from "@/types/concessions"; // Import FeeConcession
+import type { FeeConcession } from "@/types/concessions"; 
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
 import { getSchoolById } from "@/app/actions/schools";
 import { recordFeePayment, getFeePaymentsBySchool } from "@/app/actions/fees";
-import { getFeeConcessionsForSchool } from "@/app/actions/concessions"; // Import action for concessions
-import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; // For class options
+import { getFeeConcessionsForSchool } from "@/app/actions/concessions";
+import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; 
 import { format } from "date-fns";
 
-// Helper to determine current academic year string (e.g., "2023-2024")
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
-  const currentMonth = today.getMonth(); // 0 (Jan) to 11 (Dec)
+  const currentMonth = today.getMonth(); 
   const currentYear = today.getFullYear();
-  // Assuming academic year starts in June (month 5)
   if (currentMonth >= 5) { 
     return `${currentYear}-${currentYear + 1}`;
   } else { 
@@ -48,7 +46,7 @@ interface ClassOption {
 interface StudentFeeDetailsProcessed extends AppUser {
   totalAnnualTuitionFee: number;
   paidAmount: number;
-  totalConcessions: number; // Added
+  totalConcessions: number; 
   dueAmount: number;
   className?: string; 
 }
@@ -58,8 +56,8 @@ export default function FeeManagementPage() {
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [allStudents, setAllStudents] = useState<AppUser[]>([]);
   const [allSchoolPayments, setAllSchoolPayments] = useState<FeePayment[]>([]);
-  const [allSchoolConcessions, setAllSchoolConcessions] = useState<FeeConcession[]>([]); // State for concessions
-  const [classOptions, setClassOptions] = useState<ClassOption[]>([]); // State for class options
+  const [allSchoolConcessions, setAllSchoolConcessions] = useState<FeeConcession[]>([]); 
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]); 
   
   const [studentFeeList, setStudentFeeList] = useState<StudentFeeDetailsProcessed[]>([]);
   
@@ -72,7 +70,7 @@ export default function FeeManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { toast } = useToast();
-  const currentAcademicYear = getCurrentAcademicYear(); // Get current academic year
+  const currentAcademicYear = getCurrentAcademicYear();
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -113,7 +111,7 @@ export default function FeeManagementPage() {
         getSchoolById(authUser.schoolId.toString()),
         getSchoolUsers(authUser.schoolId.toString()),
         getFeePaymentsBySchool(authUser.schoolId.toString()),
-        getFeeConcessionsForSchool(authUser.schoolId.toString(), currentAcademicYear), // Fetch concessions
+        getFeeConcessionsForSchool(authUser.schoolId.toString(), currentAcademicYear),
         getClassesForSchoolAsOptions(authUser.schoolId.toString())
       ]);
 
@@ -185,8 +183,8 @@ export default function FeeManagementPage() {
 
     const processedList = allStudents.map(student => {
       const classOption = classOptions.find(c => c.value === student.classId);
-      const classNameForFeeCalc = classOption?.name; // Use the actual class name
-      const displayClassName = classOption?.label || student.classId || 'N/A'; // Use label for display
+      const classNameForFeeCalc = classOption?.name; 
+      const displayClassName = classOption?.label || student.classId || 'N/A';
       
       const totalAnnualTuitionFee = calculateAnnualTuitionFee(classNameForFeeCalc, schoolDetails);
       const studentPayments = allSchoolPayments.filter(p => p.studentId.toString() === student._id.toString());
@@ -201,10 +199,10 @@ export default function FeeManagementPage() {
 
       return {
         ...student,
-        className: displayClassName, // Use the display-friendly class name
+        className: displayClassName,
         totalAnnualTuitionFee,
         paidAmount,
-        totalConcessions, // Add total concessions
+        totalConcessions,
         dueAmount,
       };
     }) as StudentFeeDetailsProcessed[];
@@ -285,7 +283,13 @@ export default function FeeManagementPage() {
     const latestPayment = studentPayments.sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())[0];
     
     if (latestPayment && latestPayment._id) {
-      const receiptUrl = `/dashboard/admin/fees/receipt/${latestPayment._id.toString()}?studentName=${encodeURIComponent(student.name || '')}&className=${encodeURIComponent(student.className || '')}`;
+      let receiptUrl = `/dashboard/admin/fees/receipt/${latestPayment._id.toString()}`;
+      // Check which template to use
+      if (schoolDetails.reportCardTemplate === 'nursing_college') {
+        receiptUrl = `/dashboard/admin/fees/receipt-nursing/${latestPayment._id.toString()}`;
+      }
+      
+      receiptUrl += `?studentName=${encodeURIComponent(student.name || '')}&className=${encodeURIComponent(student.className || '')}`;
       window.open(receiptUrl, '_blank');
     } else {
        toast({variant: "destructive", title: "Error", description: "Could not identify the latest payment for receipt generation."});
@@ -514,3 +518,5 @@ export default function FeeManagementPage() {
     </div>
   );
 }
+
+    

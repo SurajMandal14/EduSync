@@ -9,274 +9,211 @@ export interface NursingStudentInfo {
   schoolName?: string;
   schoolAddress?: string;
   symbolNo?: string;
-  rollNo?: string;
   studentName?: string;
-  fatherName?: string;
-  program?: string;
-  year?: string;
-  examTitle?: string;
-  session?: string;
+  course?: string;
+  quota?: string;
+  address?: string;
+  photoUrl?: string;
 }
 
 export interface NursingMarksEntry {
   subject: string;
-  totalMarks: number;
-  passingMarks: number;
-  obtainMarks: number;
+  totalMarks: number; // Represents the amount for this line item
+  passingMarks: number; // Not used in fee slip, can be 0
+  obtainMarks: number; // Not used in fee slip, can be 0
 }
 
-interface NursingCollegeProps {
+interface NursingFeeSlipProps {
   studentInfo: NursingStudentInfo;
-  marks: NursingMarksEntry[];
+  marks: NursingMarksEntry[]; // Re-using marks structure for line items
 }
 
-const NursingCollege: React.FC<NursingCollegeProps> = ({ studentInfo, marks }) => {
-  const totalObtained = marks.reduce((sum, mark) => sum + mark.obtainMarks, 0);
-  const totalMarksPossible = marks.reduce((sum, mark) => sum + mark.totalMarks, 0);
-  const totalPercentage = totalMarksPossible > 0 ? Math.round((totalObtained / totalMarksPossible) * 100) : 0;
-  const overallStatus = marks.every(mark => mark.obtainMarks >= mark.passingMarks) ? "PASS" : "FAIL";
+const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, marks }) => {
+  const collageFees = marks.filter(m => ['Admission Fee', 'Refundable Fee', 'Registration Fee'].includes(m.subject));
+  const extraFees = marks.filter(m => ['Transpotation Fee', 'Dress Fee', 'Book Fee', 'Hostel Fee'].includes(m.subject));
 
-  const getGrade = (percentage: number): string => {
-    if (percentage >= 90) return "A+";
-    if (percentage >= 80) return "A";
-    if (percentage >= 70) return "B+";
-    if (percentage >= 60) return "B";
-    if (percentage >= 50) return "C";
-    if (percentage < 40) return "No Grade";
-    return "No Grade";
-  };
-  
-  const getDivision = (percentage: number): string => {
-    if (overallStatus === "FAIL") return "FAIL";
-    if (percentage >= 80) return "Distinction";
-    if (percentage >= 60) return "First Division";
-    if (percentage >= 50) return "Second Division";
-    if (percentage >= 40) return "Third Division";
-    return "FAIL";
-  };
+  const getTotal = (items: NursingMarksEntry[]) => items.reduce((sum, item) => sum + item.totalMarks, 0);
 
-  const finalGrade = getGrade(totalPercentage);
-  const finalDivision = getDivision(totalPercentage);
-
+  const totalCollageFee = getTotal(collageFees);
+  const totalExtraFee = getTotal(extraFees);
+  const totalPayAmount = marks.find(m => m.subject === 'Refundable Fee')?.totalMarks || 0; // As per image
+  const totalFeeAmount = totalCollageFee + totalExtraFee;
 
   return (
     <>
       <style jsx global>{`
-        .nursing-container {
+        .fee-slip-container {
           font-family: Arial, sans-serif;
           width: 21cm;
-          min-height: 29.7cm;
+          min-height: 15cm;
           padding: 1cm;
           margin: 0 auto;
           color: #000;
           background: #fff;
-          border: 1px solid #ccc;
         }
-        .nursing-header {
+        .fee-slip-header {
           text-align: center;
-          margin-bottom: 20px;
+          margin-bottom: 15px;
         }
-        .nursing-header .reg, .nursing-header .email {
-          font-size: 10px;
-        }
-        .nursing-header h1 {
-          font-size: 24px;
+        .fee-slip-header h1 {
+          font-size: 22px;
           font-weight: bold;
-          color: #333;
+          color: red;
           margin: 0;
         }
-        .nursing-header p {
+        .fee-slip-header p {
           font-size: 14px;
           margin: 2px 0;
         }
-        .exam-title-wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 10px;
-            gap: 10px;
-        }
-        .exam-title {
-          font-size: 18px;
-          font-weight: bold;
-          border-bottom: 2px solid #000;
-          padding: 2px 5px;
-          display: inline-block;
-        }
-        .arrow {
-            font-size: 24px;
+        .title-bar {
+            background-color: #E0E0E0;
+            padding: 5px;
+            text-align: center;
             font-weight: bold;
+            font-size: 16px;
+            font-style: italic;
+            margin-bottom: 10px;
         }
-        .student-info-table, .marks-table, .grading-table {
+        .info-table, .fees-table {
           width: 100%;
           border-collapse: collapse;
-          margin-top: 20px;
           font-size: 12px;
         }
-        .student-info-table td {
+        .info-table td {
           border: 1px solid #000;
-          padding: 4px;
+          padding: 4px 8px;
         }
-        .student-info-table .label {
+        .info-table .label {
           font-weight: bold;
-          width: 120px;
+          width: 100px;
         }
-        .marks-table th, .marks-table td {
+        .fees-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .fees-table th, .fees-table td {
           border: 1px solid #000;
           padding: 5px;
-          text-align: center;
+          text-align: left;
         }
-        .marks-table th {
-          background-color: #FFF9C4; /* Light yellow background */
+        .fees-table th {
+          background-color: #00BFFF;
+          color: red;
+          text-align: center;
           font-weight: bold;
         }
-        .marks-table tfoot td {
-             background-color: #FFF9C4; /* Light yellow background */
+        .fees-table .amount {
+            text-align: right;
+            font-family: monospace;
         }
-        .marks-table .subject-cell {
-            text-align: left;
+        .fees-table .total-row {
             font-weight: bold;
         }
-        .footer-section {
-          margin-top: 40px;
-          display: flex;
-          justify-content: space-between;
-          font-size: 12px;
-          font-weight: bold;
+        .summary-table {
+            margin-top: -1px;
+            border-top: none !important;
         }
-        .grading-table td{
-             border: 1px solid #000;
-            padding: 4px;
-            text-align: center;
+        .summary-table td {
+             background-color: #90EE90;
+             font-weight: bold;
         }
-        .grading-table .label {
-            text-align: left;
-            padding-left: 8px;
+        .footer-signatures {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
         }
       `}</style>
-      <div className="nursing-container">
-        <div className="nursing-header">
-            <div className="flex justify-between">
-                <span className="reg">Reg No: {studentInfo.regNo}</span>
-                <span className="email">Email: {studentInfo.email}</span>
-            </div>
-            {/* Logo could be here */}
-            {/* <img src="/path/to/logo.png" alt="logo" className="school-logo"/> */}
-            <p className='mt-2'>Affiliation to Council for Technical Education & Vocational Training</p>
-            <h1 className="font-serif">{studentInfo.schoolName}</h1>
-            <p>{studentInfo.schoolAddress}</p>
-            <div className="exam-title-wrapper">
-                <div className="arrow">&lt;--</div>
-                <div className="exam-title">Result of {studentInfo.examTitle || "Examination"} {studentInfo.session ? `- ${studentInfo.session} Session` : ''}</div>
-                <div className="arrow">--&gt;</div>
-            </div>
+      <div className="fee-slip-container">
+        <div className="fee-slip-header">
+          <h1>{studentInfo.schoolName || 'Mirchaiya Health Nursing Campus Pvt.Ltd'}</h1>
+          <p>{studentInfo.schoolAddress || 'Mirchaiya-7, Siraha'}</p>
         </div>
-
-        <table className="student-info-table">
+        <div className="title-bar">Collage Fee Slip</div>
+        
+        <table className="info-table">
             <tbody>
                 <tr>
+                    <td className="label">Students Name</td>
+                    <td>{studentInfo.studentName}</td>
                     <td className="label">Symbol No</td>
                     <td>{studentInfo.symbolNo}</td>
-                    <td className="label" style={{width:'80px'}}>Rollno</td>
-                    <td>{studentInfo.rollNo}</td>
+                </tr>
+                 <tr>
+                    <td className="label">Quota</td>
+                    <td>{studentInfo.quota || 'Classified'}</td>
+                    <td className="label">Course</td>
+                    <td>{studentInfo.course || 'PCL (NURSING)'}</td>
+                </tr>
+                 <tr>
+                    <td className="label">Adree</td>
+                    <td>{studentInfo.address || 'Besishahar-1, Lamjung'}</td>
+                    <td className="label">Photo</td>
+                    <td rowSpan={2} style={{verticalAlign: 'top', textAlign:'center'}}>
+                        {studentInfo.photoUrl ? <img src={studentInfo.photoUrl} alt="student" width="75" height="90" data-ai-hint="student photo"/> : <div style={{width: '75px', height: '90px', border: '1px solid #ccc', margin: 'auto', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', color:'#999'}}>Photo</div>}
+                    </td>
+                </tr>
+                <tr><td></td><td></td><td></td></tr>
+            </tbody>
+        </table>
+
+        <div className="fees-grid">
+            <div>
+                <table className="fees-table">
+                    <thead><tr><th colSpan={2}>Collage Fee</th></tr></thead>
+                    <tbody>
+                        {collageFees.map(item => (
+                            <tr key={item.subject}>
+                                <td>{item.subject}</td>
+                                <td className="amount">{item.totalMarks > 0 ? item.totalMarks.toLocaleString() : '-'}</td>
+                            </tr>
+                        ))}
+                        <tr className="total-row"><td>Total Pay Amount</td><td className="amount">{totalPayAmount > 0 ? totalPayAmount.toLocaleString() : '-'}</td></tr>
+                        <tr className="total-row"><td>Total Collage Fee</td><td className="amount">{totalCollageFee.toLocaleString()}</td></tr>
+                        <tr className="total-row"><td>Dues Amount</td><td className="amount">-</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                 <table className="fees-table">
+                    <thead><tr><th colSpan={2}>Extra Fee</th></tr></thead>
+                    <tbody>
+                        {extraFees.map(item => (
+                            <tr key={item.subject}>
+                                <td>{item.subject}</td>
+                                <td className="amount">{item.totalMarks > 0 ? item.totalMarks.toLocaleString() : '-'}</td>
+                            </tr>
+                        ))}
+                         <tr className="total-row"><td>Total Extra Fee</td><td className="amount">{totalExtraFee.toLocaleString()}</td></tr>
+                         <tr className="total-row"><td>Dues Amount</td><td className="amount">-</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <table className="fees-table summary-table">
+            <tbody>
+                <tr>
+                    <td className="total-row">Total Fee Amount</td>
+                    <td className="amount total-row">{totalFeeAmount.toLocaleString()}</td>
                 </tr>
                 <tr>
-                    <td className="label">Students Name</td>
-                    <td colSpan={3} className="font-bold">{studentInfo.studentName}</td>
-                </tr>
-                 <tr>
-                    <td className="label">Father Name</td>
-                    <td colSpan={3} className="font-bold">{studentInfo.fatherName}</td>
-                </tr>
-                 <tr>
-                    <td className="label">Program</td>
-                    <td>{studentInfo.program}</td>
-                     <td className="label" style={{width:'80px'}}>Year</td>
-                    <td>{studentInfo.year}</td>
+                    <td className="total-row">Total Dues Amount</td>
+                    <td className="amount total-row">-</td>
                 </tr>
             </tbody>
         </table>
 
-        <p style={{textAlign: 'center', marginTop: '20px', fontStyle:'italic'}}>According to this result the candidate obtain the following marks.</p>
-
-        <table className="marks-table">
-          <thead>
-            <tr>
-              <th>Subject</th>
-              <th>Total Marks</th>
-              <th>Passing Marks</th>
-              <th>Obtain Marks</th>
-              <th>Percentage</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {marks.map((mark, index) => (
-              <tr key={index}>
-                <td className="subject-cell">{mark.subject}</td>
-                <td>{mark.totalMarks}</td>
-                <td>{mark.passingMarks}</td>
-                <td>{mark.obtainMarks}</td>
-                {index === 0 && <td rowSpan={marks.length + 1}>{totalPercentage}%</td>}
-                {index === 0 && <td rowSpan={marks.length + 1} className="font-bold">{overallStatus}</td>}
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-             <tr>
-                <td className="subject-cell"><strong>Total</strong></td>
-                <td><strong>{totalMarksPossible}</strong></td>
-                <td></td>
-                <td><strong>{totalObtained}</strong></td>
-            </tr>
-          </tfoot>
-        </table>
-        
-        <div className="flex mt-4">
-            <div className="w-2/3 pr-4">
-                 <table className="grading-table">
-                     <tbody>
-                        <tr><td className="label">No Grade</td><td>0%-49%</td></tr>
-                        <tr><td className="label">Grade C</td><td>50%-59%</td></tr>
-                        <tr><td className="label">Grade B</td><td>60%-69%</td></tr>
-                        <tr><td className="label">Grade B+</td><td>70%-79%</td></tr>
-                        <tr><td className="label">Grade A</td><td>80%-89%</td></tr>
-                        <tr><td className="label">Grade A+</td><td>90%-100%</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div className="w-1/3 pl-4">
-                 <table className="grading-table h-full">
-                    <tbody>
-                        <tr><td><strong>Division</strong></td><td>{finalDivision}</td></tr>
-                        <tr><td><strong>Grade</strong></td><td>{finalGrade}</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-
-        <div className="pt-5">
-             <p><strong>Note:-</strong> This Result is according to the {studentInfo.examTitle || "examination"} {studentInfo.session}. This is computer generated result card parents can contact to admin office for enquiry .</p>
-        </div>
-
-        <div className="footer-section">
-          <div>
-            <p>Checked by:..................</p>
-          </div>
-           <div>
-            <p>Dated:........................</p>
-          </div>
-           <div>
-            <p>Campus Stamp</p>
-          </div>
-        </div>
-        <div className="text-center mt-4">
-            <p>.......................................</p>
+        <div className="footer-signatures">
+            <p>Parents Signature:...........................</p>
+            <p>Accountant Signature..........................</p>
         </div>
       </div>
     </>
   );
 };
 
-export default NursingCollege;
+export default NursingCollegeFeeSlip;
+
+    
