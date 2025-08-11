@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { getPaymentById } from '@/app/actions/fees';
 import { getSchoolById } from '@/app/actions/schools'; 
-import { getStudentDetailsForReportCard } from '@/app/actions/schoolUsers';
+import { getSchoolUsers } from '@/app/actions/schoolUsers';
 import { getFeePaymentsByStudent } from '@/app/actions/fees';
 import { getFeeConcessionsForSchool } from '@/app/actions/concessions';
 import type { FeePayment } from '@/types/fees';
@@ -14,7 +14,7 @@ import type { User } from '@/types/user';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
-import NursingCollege, { type NursingStudentInfo, type NursingFeeSummary } from '@/components/report-cards/NursingCollege';
+import NursingCollegeFeeSlip, { type NursingStudentInfo, type NursingFeeSummary } from '@/components/report-cards/NursingCollege';
 
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
@@ -73,12 +73,13 @@ export default function NursingFeeReceiptPage() {
       const currentPayment = paymentResult.payment;
       setPayment(currentPayment);
       
-      const [schoolResult, studentResult, allPaymentsResult, concessionsResult] = await Promise.all([
+      const studentIdToFind = currentPayment.studentId.toString();
+
+      const [schoolResult, allUsersResult, allPaymentsResult, concessionsResult] = await Promise.all([
           getSchoolById(currentPayment.schoolId.toString()),
-          // Use getStudentDetailsForReportCard to fetch full student details
-          getStudentDetailsForReportCard(currentPayment.studentId.toString(), currentPayment.schoolId.toString()),
-          getFeePaymentsByStudent(currentPayment.studentId.toString(), currentPayment.schoolId.toString()),
-          getFeeConcessionsForSchool(currentPayment.studentId.toString(), currentPayment.schoolId.toString(), getCurrentAcademicYear())
+          getSchoolUsers(currentPayment.schoolId.toString()),
+          getFeePaymentsByStudent(studentIdToFind, currentPayment.schoolId.toString()),
+          getFeeConcessionsForSchool(currentPayment.schoolId.toString(), getCurrentAcademicYear())
       ]);
 
       if (!schoolResult.success || !schoolResult.school) {
@@ -88,17 +89,23 @@ export default function NursingFeeReceiptPage() {
       const currentSchool = schoolResult.school;
       setSchool(currentSchool);
 
-      if (!studentResult.success || !studentResult.student) {
-        setError(studentResult.message || "Could not load student details.");
+      let currentStudent: Partial<User> | null = null;
+      if (allUsersResult.success && allUsersResult.users) {
+          currentStudent = allUsersResult.users.find(u => u._id === studentIdToFind) || null;
+      }
+      
+      if (!currentStudent) {
+        setError("Could not find the student associated with this payment.");
         setIsLoading(false); return;
       }
-      const currentStudent = studentResult.student;
       setStudent(currentStudent);
       
       const totalAnnualTuition = calculateAnnualTuitionFee(currentStudent.classId, currentSchool);
       const totalAnnualBusFee = calculateAnnualBusFee(currentStudent, currentSchool);
       const totalPaid = (allPaymentsResult.payments || []).reduce((sum, p) => sum + p.amountPaid, 0);
-      const totalConcessions = (concessionsResult.concessions || []).reduce((sum, c) => sum + c.amount, 0);
+      const studentConcessions = (concessionsResult.concessions || []).filter(c => c.studentId === studentIdToFind);
+      const totalConcessions = studentConcessions.reduce((sum, c) => sum + c.amount, 0);
+
 
       setFeeSummary({
         totalAnnualTuition,
@@ -179,7 +186,7 @@ export default function NursingFeeReceiptPage() {
       `}</style>
       <Card className="w-full max-w-2xl shadow-xl printable-receipt-container print:shadow-none print:border-none">
         <CardContent className="p-0">
-          <NursingCollege studentInfo={studentInfoForTemplate} feeSummary={feeSummary} />
+          <NursingCollegeFeeSlip studentInfo={studentInfoForTemplate} feeSummary={feeSummary} />
         </CardContent>
       </Card>
       <div className="mt-8 flex gap-4 no-print w-full max-w-2xl">
