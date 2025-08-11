@@ -12,6 +12,7 @@ import { getStudentAttendanceRecords } from '@/app/actions/attendance';
 import { getFeePaymentsByStudent } from '@/app/actions/fees';
 import { getSchoolById } from '@/app/actions/schools';
 import { getFeeConcessionsForStudent } from '@/app/actions/concessions'; // Import action
+import { getClassDetailsById } from '@/app/actions/classes';
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to determine current academic year string (e.g., "2023-2024")
@@ -53,6 +54,7 @@ interface StudentDataContextType {
   error: string | null;
   refreshData: () => void;
   schoolDetails: School | null;
+  studentClassId?: string; // Add classId
 }
 
 const StudentDataContext = createContext<StudentDataContextType | undefined>(undefined);
@@ -77,6 +79,7 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
   const [feeSummary, setFeeSummary] = useState<FeeSummary | null>(null);
   const [appliedConcessions, setAppliedConcessions] = useState<FeeConcession[]>([]); // State for concessions
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
+  const [studentClassId, setStudentClassId] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -88,6 +91,7 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         const parsedUser: AuthUser = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'student' && parsedUser._id && parsedUser.schoolId) {
           setAuthUser(parsedUser);
+          setStudentClassId(parsedUser.classId);
         } else {
           setAuthUser(null);
           setError("Invalid user session for student data.");
@@ -126,11 +130,12 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
     const currentAcademicYearStr = getCurrentAcademicYear();
 
     try {
-      const [attendanceResult, feePaymentsResult, schoolResult, concessionsResult] = await Promise.all([
+      const [attendanceResult, feePaymentsResult, schoolResult, concessionsResult, classResult] = await Promise.all([
         getStudentAttendanceRecords(authUser._id.toString(), authUser.schoolId.toString()),
         getFeePaymentsByStudent(authUser._id.toString(), authUser.schoolId.toString()),
         getSchoolById(authUser.schoolId.toString()),
-        getFeeConcessionsForStudent(authUser._id.toString(), authUser.schoolId.toString(), currentAcademicYearStr)
+        getFeeConcessionsForStudent(authUser._id.toString(), authUser.schoolId.toString(), currentAcademicYearStr),
+        authUser.classId ? getClassDetailsById(authUser.classId, authUser.schoolId.toString()) : Promise.resolve(null),
       ]);
 
       if (schoolResult.success && schoolResult.school) {
@@ -170,8 +175,10 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         const studentPayments = feePaymentsResult.success && feePaymentsResult.payments ? feePaymentsResult.payments : [];
         const studentConcessions = concessionsResult.success && concessionsResult.concessions ? concessionsResult.concessions : [];
         
-        if (authUser.classId) {
-            const totalAnnualTuitionFee = calculateAnnualTuitionFee(authUser.classId as string, currentSchoolDetails);
+        const classNameForFee = classResult?.success && classResult.classDetails ? classResult.classDetails.name : undefined;
+
+        if (classNameForFee) {
+            const totalAnnualTuitionFee = calculateAnnualTuitionFee(classNameForFee, currentSchoolDetails);
             const totalPaid = studentPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
             const totalConcessionsAmount = studentConcessions.reduce((sum, concession) => sum + concession.amount, 0);
             const totalDue = totalAnnualTuitionFee - totalPaid - totalConcessionsAmount;
@@ -192,7 +199,8 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
             setFeeSummary({ totalFee: totalAnnualTuitionFee, totalPaid, totalConcessions: totalConcessionsAmount, totalDue, percentagePaid });
         } else {
             setFeeSummary({ totalFee: 0, totalPaid: 0, totalConcessions: 0, totalDue: 0, percentagePaid: 0 });
-            toast({ variant: "info", title: "Fee Info", description: "You are not assigned to a class, so fee details cannot be calculated." });
+            if(authUser.classId) toast({ variant: "info", title: "Fee Info", description: "Your class details could not be found, so fee details cannot be calculated." });
+            else toast({ variant: "info", title: "Fee Info", description: "You are not assigned to a class, so fee details cannot be calculated." });
         }
       } else {
         setFeeSummary(null);
@@ -234,7 +242,8 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         isLoading, 
         error, 
         refreshData,
-        schoolDetails
+        schoolDetails,
+        studentClassId
     }}>
       {children}
     </StudentDataContext.Provider>

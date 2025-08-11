@@ -8,9 +8,10 @@ import { getSchoolById } from '@/app/actions/schools';
 import { getSchoolUsers } from '@/app/actions/schoolUsers';
 import { getFeePaymentsByStudent } from '@/app/actions/fees';
 import { getFeeConcessionsForSchool } from '@/app/actions/concessions';
+import { getClassDetailsById } from '@/app/actions/classes';
 import type { FeePayment } from '@/types/fees';
-import type { School } from '@/types/school';
-import type { User } from '@/types/user';
+import type { School, ClassTuitionFeeConfig } from '@/types/school';
+import type { User, AuthUser } from '@/types/user';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
@@ -39,11 +40,9 @@ export default function NursingFeeReceiptPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const calculateAnnualTuitionFee = useCallback((className: string | undefined, schoolConfig: School | null): number => {
-    if (!className || !schoolConfig || !schoolConfig.tuitionFees) return 0;
-    const classFeeConfig = schoolConfig.tuitionFees.find(cf => cf.className === className);
-    if (!classFeeConfig || !classFeeConfig.terms) return 0;
-    return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
+  const calculateAnnualTuitionFee = useCallback((classConfig: ClassTuitionFeeConfig | undefined): number => {
+    if (!classConfig || !classConfig.terms) return 0;
+    return classConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
   }, []);
 
   const calculateAnnualBusFee = useCallback((student: Partial<User> | null, schoolConfig: School | null): number => {
@@ -99,8 +98,16 @@ export default function NursingFeeReceiptPage() {
         setIsLoading(false); return;
       }
       setStudent(currentStudent);
+
+      let studentClassName: string | undefined = undefined;
+      if (currentStudent.classId) {
+        const classDetailsRes = await getClassDetailsById(currentStudent.classId, currentSchool._id);
+        studentClassName = classDetailsRes.classDetails?.name;
+      }
       
-      const totalAnnualTuition = calculateAnnualTuitionFee(currentStudent.classId, currentSchool);
+      const tuitionFeeConfig = currentSchool.tuitionFees.find(tf => tf.className === studentClassName);
+      const totalAnnualTuition = calculateAnnualTuitionFee(tuitionFeeConfig);
+      
       const totalAnnualBusFee = calculateAnnualBusFee(currentStudent, currentSchool);
       const totalPaid = (allPaymentsResult.payments || []).reduce((sum, p) => sum + p.amountPaid, 0);
       const studentConcessions = (concessionsResult.concessions || []).filter(c => c.studentId === studentIdToFind);
