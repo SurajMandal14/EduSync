@@ -70,6 +70,8 @@ export default function AttendanceTakerPage() {
             }));
         setAssignedClasses(classInfo);
         setIsLoading(false);
+    } else {
+        setIsLoading(false);
     }
   }, [authUser]);
 
