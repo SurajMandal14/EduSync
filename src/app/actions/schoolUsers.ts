@@ -363,35 +363,22 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
       setOperation.password = await bcrypt.hash(password, 10);
     }
     
-    // Handle classId for student/teacher
-    if ((role === 'student' || role === 'teacher') && classId && classId.trim() !== "" && ObjectId.isValid(classId)) {
-        setOperation.classId = classId.trim();
-    } else {
-        unsetOperation.classId = "";
-    }
-    
-    // Handle classIds for attendance taker
-    if (role === 'attendancetaker' && classIds && Array.isArray(classIds)) {
-        setOperation.classIds = classIds;
-    } else {
-        unsetOperation.classIds = "";
-    }
-
-    // Handle role-specific fields
     if (role === 'student') {
+        if (classId && classId.trim() !== "" && ObjectId.isValid(classId)) setOperation.classId = classId.trim(); else unsetOperation.classId = "";
         setOperation.admissionId = admissionId;
         setOperation.fatherName = fatherName;
         setOperation.motherName = motherName;
         setOperation.dob = dob;
         setOperation.section = section;
         setOperation.rollNo = rollNo;
-        
         setOperation.symbolNo = symbolNo;
         setOperation.registrationNo = registrationNo;
         setOperation.district = district;
         setOperation.gender = gender;
         setOperation.quota = quota;
         
+        unsetOperation.classIds = ""; // Clear classIds if role is student
+
         if (enableBusTransport && busRouteLocation && busClassCategory) {
             setOperation.busRouteLocation = busRouteLocation;
             setOperation.busClassCategory = busClassCategory;
@@ -399,7 +386,10 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
             unsetOperation.busRouteLocation = "";
             unsetOperation.busClassCategory = "";
         }
-    } else { // It's a teacher or attendance taker, so clear student-specific fields
+    } else if (role === 'teacher') {
+        unsetOperation.classIds = ""; // Clear classIds for teacher
+        unsetOperation.classId = ""; // Also clear single classId
+        // Clear all student-specific fields
         unsetOperation.admissionId = "";
         unsetOperation.busRouteLocation = "";
         unsetOperation.busClassCategory = "";
@@ -408,7 +398,23 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         unsetOperation.dob = "";
         unsetOperation.section = "";
         unsetOperation.rollNo = "";
-        
+        unsetOperation.symbolNo = "";
+        unsetOperation.registrationNo = "";
+        unsetOperation.district = "";
+        unsetOperation.gender = "";
+        unsetOperation.quota = "";
+    } else if (role === 'attendancetaker') {
+        if (classIds && Array.isArray(classIds)) setOperation.classIds = classIds; else unsetOperation.classIds = "";
+        unsetOperation.classId = ""; // Clear single classId
+        // Clear all student-specific fields
+        unsetOperation.admissionId = "";
+        unsetOperation.busRouteLocation = "";
+        unsetOperation.busClassCategory = "";
+        unsetOperation.fatherName = "";
+        unsetOperation.motherName = "";
+        unsetOperation.dob = "";
+        unsetOperation.section = "";
+        unsetOperation.rollNo = "";
         unsetOperation.symbolNo = "";
         unsetOperation.registrationNo = "";
         unsetOperation.district = "";
