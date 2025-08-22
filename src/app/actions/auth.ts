@@ -34,11 +34,10 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
     let user: User | null = null;
     let isDefaultPassword = false;
 
-    if (identifier.includes('@')) { // Treat as email (for admins, teachers)
-      user = await usersCollection.findOne({ email: identifier });
-      if (user && user.email !== identifier) {
-         return { error: 'User not found or email case mismatch.', success: false };
-      }
+    // Email check is case-insensitive for login
+    const isEmail = identifier.includes('@');
+    if (isEmail) {
+      user = await usersCollection.findOne({ email: { $regex: new RegExp(`^${identifier}$`, 'i') } });
     } else { // Treat as registration number (only for students)
       user = await usersCollection.findOne({ registrationNo: identifier, role: 'student' });
     }
@@ -99,5 +98,3 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
     return { error: 'An unexpected error occurred during login. Please try again later.', success: false };
   }
 }
-
-  

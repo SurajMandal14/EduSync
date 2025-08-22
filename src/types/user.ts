@@ -1,8 +1,4 @@
 
-
-// Basic User type definition
-// This will be expanded as we add more user-specific fields.
-
 import type { ObjectId } from 'mongodb';
 import { z } from 'zod';
 
