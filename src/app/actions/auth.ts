@@ -16,7 +16,7 @@ export interface LoginResult {
   success: boolean;
   error?: string;
   message?: string;
-  user?: Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'admissionId' | 'avatarUrl' | 'registrationNo'> & { requiresPasswordChange?: boolean };
+  user?: Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'admissionId' | 'avatarUrl' | 'registrationNo' | 'classIds'> & { requiresPasswordChange?: boolean };
 }
 
 export async function loginUser(values: z.infer<typeof loginSchema>): Promise<LoginResult> {
@@ -86,6 +86,7 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
         role: user.role,
         schoolId: user.schoolId?.toString(),
         classId: user.classId || undefined,
+        classIds: user.classIds || undefined, // Correctly include classIds for attendance taker
         admissionId: user.admissionId,
         registrationNo: user.registrationNo,
         avatarUrl: user.avatarUrl,

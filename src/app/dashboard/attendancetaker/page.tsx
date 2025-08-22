@@ -40,18 +40,9 @@ export default function AttendanceTakerPage() {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
       try {
-        const parsedUser: AuthUser & { classIds?: string[] } = JSON.parse(storedUser);
+        const parsedUser: AuthUser = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'attendancetaker') {
           setAuthUser(parsedUser);
-          if (parsedUser.classIds && parsedUser.schoolId) {
-            const classPromises = parsedUser.classIds.map(id => getClassDetailsById(id, parsedUser.schoolId!));
-            Promise.all(classPromises).then(results => {
-              const classInfo = results
-                .filter(res => res.success && res.classDetails)
-                .map(res => ({ id: res.classDetails!._id, name: `${res.classDetails!.name} - ${res.classDetails!.section}` }));
-              setAssignedClasses(classInfo);
-            });
-          }
         } else {
           setAuthUser(null);
           if (parsedUser?.role !== 'attendancetaker') {
@@ -64,8 +55,27 @@ export default function AttendanceTakerPage() {
     } else {
       setAuthUser(null);
     }
-    setIsLoading(false);
   }, [toast]);
+  
+  const fetchAssignedClasses = useCallback(async () => {
+    if (authUser && authUser.classIds && authUser.schoolId) {
+        setIsLoading(true);
+        const classPromises = authUser.classIds.map(id => getClassDetailsById(id, authUser.schoolId!));
+        const results = await Promise.all(classPromises);
+        const classInfo = results
+            .filter(res => res.success && res.classDetails)
+            .map(res => ({ 
+                id: res.classDetails!._id, 
+                name: `${res.classDetails!.name}${res.classDetails!.section ? ` - ${res.classDetails!.section}` : ''}` 
+            }));
+        setAssignedClasses(classInfo);
+        setIsLoading(false);
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    fetchAssignedClasses();
+  }, [fetchAssignedClasses]);
 
   const fetchStudentsForClass = useCallback(async (classId: string) => {
     if (!authUser || !authUser.schoolId || !classId) {
@@ -188,8 +198,12 @@ export default function AttendanceTakerPage() {
           ) : !selectedClassId ? (
             <div className="text-center py-6">
                 <Info className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-4 text-lg font-semibold">No Class Selected</p>
-                <p className="text-muted-foreground">Please select a class from the dropdown above to view the student list.</p>
+                <p className="mt-4 text-lg font-semibold">
+                    {assignedClasses.length > 0 ? "No Class Selected" : "No Classes Assigned"}
+                </p>
+                <p className="text-muted-foreground">
+                    {assignedClasses.length > 0 ? "Please select a class from the dropdown above to view the student list." : "Please contact your school administrator to be assigned to classes."}
+                </p>
             </div>
           ) : studentAttendance.length > 0 ? (
             <Table>
@@ -229,5 +243,3 @@ export default function AttendanceTakerPage() {
     </div>
   );
 }
-
-    
