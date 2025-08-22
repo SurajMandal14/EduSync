@@ -166,12 +166,50 @@ export async function getMarksForAssessment(
 
 
 export interface SubjectForTeacher {
-  value: string;
-  label: string;
+  value: string; // Composite key for Select: "classId_subjectName"
+  label: string; // Display label: "Subject Name (ClassName - Section)"
   classId: string;
   className: string;
   subjectName: string;
 }
+
+export interface AssignedClassInfo {
+  id: string; // class _id
+  name: string; // "ClassName - Section"
+}
+
+// RENAMED and REFACTORED from getSubjectsForTeacher
+export async function getAssignedClassesForUser(userId: string, schoolId: string, assignedClassIds: string[]): Promise<AssignedClassInfo[]> {
+    if (!ObjectId.isValid(userId) || !ObjectId.isValid(schoolId)) {
+        console.warn("getAssignedClassesForUser: Invalid userId or schoolId format provided.");
+        return [];
+    }
+    if (!assignedClassIds || assignedClassIds.length === 0) {
+        return [];
+    }
+
+    try {
+        const { db } = await connectToDatabase();
+        const schoolClassesCollection = db.collection<Omit<SchoolClass, '_id' | 'schoolId'> & { _id: ObjectId; schoolId: ObjectId }>('school_classes');
+        
+        const classObjectIds = assignedClassIds.map(id => new ObjectId(id));
+        
+        const classes = await schoolClassesCollection.find({
+            _id: { $in: classObjectIds },
+            schoolId: new ObjectId(schoolId)
+        }).toArray();
+
+        return classes.map(cls => ({
+            id: cls._id.toString(),
+            name: `${cls.name}${cls.section ? ` - ${cls.section}` : ''}`
+        }));
+
+    } catch (error) {
+        console.error("Error fetching assigned classes for user:", error);
+        return [];
+    }
+}
+
 
 export async function getSubjectsForTeacher(teacherId: string, schoolId: string): Promise<SubjectForTeacher[]> {
     if (!ObjectId.isValid(teacherId) || !ObjectId.isValid(schoolId)) {
@@ -182,7 +220,6 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string)
         const { db } = await connectToDatabase();
         const schoolClassesCollection = db.collection<Omit<SchoolClass, '_id' | 'schoolId'> & { _id: ObjectId; schoolId: ObjectId }>('school_classes');
 
-        const teacherObjectId = new ObjectId(teacherId);
         const schoolObjectId = new ObjectId(schoolId);
 
         const classesInSchool = await schoolClassesCollection.find({ schoolId: schoolObjectId }).toArray();
@@ -204,7 +241,7 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string)
                     if (!taughtSubjects.some(ts => ts.value === uniqueValue)) {
                         taughtSubjects.push({
                             value: uniqueValue,
-                            label: `${subject.name} (${cls.name}${cls.section ? ` - ${cls.section}` : ''})`, // Include section in label
+                            label: `${subject.name} (${cls.name}${cls.section ? ` - ${cls.section}` : ''})`,
                             classId: cls._id.toString(),
                             className: cls.name,
                             subjectName: subject.name

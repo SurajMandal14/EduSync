@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckSquare, CalendarDays, Save, Loader2, Info, BookCopy } from "lucide-react";
+import { CheckSquare, CalendarDays, Save, Loader2, Info } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -15,15 +15,9 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { submitAttendance } from "@/app/actions/attendance";
 import { getStudentsByClass } from "@/app/actions/schoolUsers";
-import { getClassDetailsById } from "@/app/actions/classes"; 
+import { getAssignedClassesForUser, type AssignedClassInfo } from "@/app/actions/marks"; 
 import type { AttendanceEntry, AttendanceStatus, AttendanceSubmissionPayload } from "@/types/attendance";
 import type { AuthUser } from "@/types/user";
-import type { SchoolClass } from "@/types/classes";
-
-interface AssignedClassInfo {
-  id: string;
-  name: string;
-}
 
 export default function AttendanceTakerPage() {
   const [attendanceDate, setAttendanceDate] = useState<Date | undefined>(new Date());
@@ -58,16 +52,9 @@ export default function AttendanceTakerPage() {
   }, [toast]);
   
   const fetchAssignedClasses = useCallback(async () => {
-    if (authUser && authUser.classIds && authUser.schoolId) {
+    if (authUser && authUser._id && authUser.schoolId && authUser.classIds) {
         setIsLoading(true);
-        const classPromises = authUser.classIds.map(id => getClassDetailsById(id, authUser.schoolId!));
-        const results = await Promise.all(classPromises);
-        const classInfo = results
-            .filter(res => res.success && res.classDetails)
-            .map(res => ({ 
-                id: res.classDetails!._id, 
-                name: `${res.classDetails!.name}${res.classDetails!.section ? ` - ${res.classDetails!.section}` : ''}` 
-            }));
+        const classInfo = await getAssignedClassesForUser(authUser._id, authUser.schoolId, authUser.classIds);
         setAssignedClasses(classInfo);
         setIsLoading(false);
     } else {
@@ -195,8 +182,8 @@ export default function AttendanceTakerPage() {
           )}
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading...</p></div>
+          {isLoading && !selectedClassId ? (
+             <div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading assigned classes...</p></div>
           ) : !selectedClassId ? (
             <div className="text-center py-6">
                 <Info className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -207,6 +194,8 @@ export default function AttendanceTakerPage() {
                     {assignedClasses.length > 0 ? "Please select a class from the dropdown above to view the student list." : "Please contact your school administrator to be assigned to classes."}
                 </p>
             </div>
+          ) : isLoading ? (
+             <div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading students...</p></div>
           ) : studentAttendance.length > 0 ? (
             <Table>
               <TableHeader>
