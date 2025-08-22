@@ -6,18 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckSquare, CalendarDays, Save, Loader2, Info } from "lucide-react";
+import { CheckSquare, CalendarDays, Save, Loader2, Info, BookCopy } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { submitAttendance } from "@/app/actions/attendance";
 import { getStudentsByClass } from "@/app/actions/schoolUsers";
 import { getClassDetailsById } from "@/app/actions/classes"; 
 import type { AttendanceEntry, AttendanceStatus, AttendanceSubmissionPayload } from "@/types/attendance";
 import type { AuthUser } from "@/types/user";
 import type { SchoolClass } from "@/types/classes";
+
+interface AssignedClassInfo {
+  id: string;
+  name: string;
+}
 
 export default function AttendanceTakerPage() {
   const [attendanceDate, setAttendanceDate] = useState<Date | undefined>(new Date());
@@ -26,15 +32,27 @@ export default function AttendanceTakerPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [assignedClassDetails, setAssignedClassDetails] = useState<SchoolClass | null>(null);
+  
+  const [assignedClasses, setAssignedClasses] = useState<AssignedClassInfo[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
       try {
-        const parsedUser: AuthUser = JSON.parse(storedUser);
+        const parsedUser: AuthUser & { classIds?: string[] } = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'attendancetaker') {
           setAuthUser(parsedUser);
+          // Pre-fetch class names for the dropdown
+          if (parsedUser.classIds && parsedUser.schoolId) {
+            const classPromises = parsedUser.classIds.map(id => getClassDetailsById(id, parsedUser.schoolId!));
+            Promise.all(classPromises).then(results => {
+              const classInfo = results
+                .filter(res => res.success && res.classDetails)
+                .map(res => ({ id: res.classDetails!._id, name: `${res.classDetails!.name} - ${res.classDetails!.section}` }));
+              setAssignedClasses(classInfo);
+            });
+          }
         } else {
           setAuthUser(null);
           if (parsedUser?.role !== 'attendancetaker') {
@@ -47,53 +65,38 @@ export default function AttendanceTakerPage() {
     } else {
       setAuthUser(null);
     }
+    setIsLoading(false);
   }, [toast]);
 
-  const fetchClassDetailsAndStudents = useCallback(async () => {
-    if (!authUser || !authUser.schoolId || !authUser.classId) {
-      setAssignedClassDetails(null);
+  const fetchStudentsForClass = useCallback(async (classId: string) => {
+    if (!authUser || !authUser.schoolId || !classId) {
       setStudentAttendance([]);
-      setIsLoading(false);
       return;
     }
-
     setIsLoading(true);
-    const classResult = await getClassDetailsById(authUser.classId, authUser.schoolId.toString());
-
-    if (classResult.success && classResult.classDetails) {
-      const foundClass = classResult.classDetails;
-      setAssignedClassDetails(foundClass);
-
-      const studentsResult = await getStudentsByClass(authUser.schoolId.toString(), foundClass._id);
-      if (studentsResult.success && studentsResult.users) {
-        const studentEntries: AttendanceEntry[] = studentsResult.users.map(student => ({
-          studentId: student._id!.toString(),
-          studentName: student.name || 'Unknown Student',
-          status: 'present',
-        }));
-        setStudentAttendance(studentEntries);
-        if (studentEntries.length === 0) {
-          toast({ title: "No Students", description: `No students found in your assigned class: ${foundClass.name}.` });
-        }
-      } else {
-        toast({ variant: "destructive", title: "Error Loading Students", description: studentsResult.message || "Could not fetch students." });
-        setStudentAttendance([]);
-      }
+    const studentsResult = await getStudentsByClass(authUser.schoolId.toString(), classId);
+    if (studentsResult.success && studentsResult.users) {
+      const studentEntries: AttendanceEntry[] = studentsResult.users.map(student => ({
+        studentId: student._id!.toString(),
+        studentName: student.name || 'Unknown Student',
+        status: 'present',
+      }));
+      setStudentAttendance(studentEntries);
     } else {
-      toast({ variant: "destructive", title: "Class Not Found", description: `Your assigned class (ID: ${authUser.classId}) details could not be found.` });
-      setAssignedClassDetails(null);
+      toast({ variant: "destructive", title: "Error Loading Students", description: studentsResult.message || "Could not fetch students for the selected class." });
       setStudentAttendance([]);
     }
     setIsLoading(false);
   }, [authUser, toast]);
 
   useEffect(() => {
-    if (authUser?.schoolId && authUser?.classId) {
-      fetchClassDetailsAndStudents();
+    if(selectedClassId) {
+        fetchStudentsForClass(selectedClassId);
     } else {
-      setIsLoading(false);
+        setStudentAttendance([]);
     }
-  }, [authUser, fetchClassDetailsAndStudents]);
+  }, [selectedClassId, fetchStudentsForClass]);
+
 
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
     setStudentAttendance(prev => prev.map(s => (s.studentId === studentId ? { ...s, status } : s)));
@@ -104,7 +107,8 @@ export default function AttendanceTakerPage() {
   };
 
   const handleSubmitAttendance = async () => {
-    if (!authUser || !authUser.schoolId || !authUser._id || !assignedClassDetails) {
+    const selectedClassInfo = assignedClasses.find(c => c.id === selectedClassId);
+    if (!authUser || !authUser.schoolId || !authUser._id || !selectedClassInfo) {
       toast({ variant: "destructive", title: "Error", description: "User or class information not found." });
       return;
     }
@@ -114,8 +118,8 @@ export default function AttendanceTakerPage() {
     }
     setIsSubmitting(true);
     const payload: AttendanceSubmissionPayload = {
-      classId: assignedClassDetails._id,
-      className: assignedClassDetails.name,
+      classId: selectedClassInfo.id,
+      className: selectedClassInfo.name,
       schoolId: authUser.schoolId.toString(),
       date: attendanceDate,
       entries: studentAttendance,
@@ -129,18 +133,16 @@ export default function AttendanceTakerPage() {
       toast({ variant: "destructive", title: "Submission Failed", description: result.error || result.message });
     }
   };
-  
-  const currentClassName = assignedClassDetails?.name || "your assigned class";
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
-            <CheckSquare className="mr-2 h-6 w-6" /> Mark Student Attendance
+            <CheckSquare className="mr-2 h-6 w-6" /> Centralized Attendance Marking
           </CardTitle>
           <CardDescription>
-            {isLoading ? "Loading..." : assignedClassDetails ? `Marking attendance for class: ${assignedClassDetails.name}.` : "No class assigned. Please contact an administrator."}
+            {isLoading ? "Loading..." : "Select a class to mark student attendance."}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -148,12 +150,22 @@ export default function AttendanceTakerPage() {
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center w-full md:w-auto">
-            {assignedClassDetails && <p className="font-semibold text-lg">Class: {assignedClassDetails.name}</p>}
+             <div>
+                <Label htmlFor="class-select" className="mb-1 block text-sm font-medium">Select Class</Label>
+                <Select value={selectedClassId} onValueChange={setSelectedClassId} disabled={isSubmitting || isLoading || assignedClasses.length === 0}>
+                    <SelectTrigger id="class-select" className="w-full sm:w-[280px]">
+                        <SelectValue placeholder={assignedClasses.length > 0 ? "Select a class to manage" : "No classes assigned"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {assignedClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+             </div>
             <div>
               <Label htmlFor="date-picker" className="mb-1 block text-sm font-medium">Select Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button id="date-picker" variant="outline" className="w-full sm:w-[280px] justify-start text-left font-normal" disabled={isSubmitting || !authUser || !assignedClassDetails || !attendanceDate}>
+                  <Button id="date-picker" variant="outline" className="w-full sm:w-[280px] justify-start text-left font-normal" disabled={isSubmitting || isLoading || !attendanceDate}>
                     <CalendarDays className="mr-2 h-4 w-4" />
                     {attendanceDate ? format(attendanceDate, "PPP") : <span>Pick a date</span>}
                   </Button>
@@ -164,7 +176,7 @@ export default function AttendanceTakerPage() {
               </Popover>
             </div>
           </div>
-          {assignedClassDetails && studentAttendance.length > 0 && (
+          {studentAttendance.length > 0 && (
             <div className="flex gap-2 mt-4 md:mt-0 self-start md:self-center">
               <Button variant="outline" size="sm" onClick={() => handleMarkAll('present')} disabled={isSubmitting || isLoading}>Mark All Present</Button>
               <Button variant="outline" size="sm" onClick={() => handleMarkAll('absent')} disabled={isSubmitting || isLoading}>Mark All Absent</Button>
@@ -174,11 +186,11 @@ export default function AttendanceTakerPage() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading...</p></div>
-          ) : !authUser || !authUser.classId || !assignedClassDetails ? (
+          ) : !selectedClassId ? (
             <div className="text-center py-6">
-              <Info className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-lg font-semibold">Not Assigned to a Class</p>
-              <p className="text-muted-foreground">You must be assigned to a specific class to take attendance. Please contact your school administrator.</p>
+                <Info className="mx-auto h-12 w-12 text-muted-foreground" />
+                <p className="mt-4 text-lg font-semibold">No Class Selected</p>
+                <p className="text-muted-foreground">Please select a class from the dropdown above to view the student list.</p>
             </div>
           ) : studentAttendance.length > 0 ? (
             <Table>
@@ -204,9 +216,9 @@ export default function AttendanceTakerPage() {
               </TableBody>
             </Table>
           ) : (
-            <p className="text-center text-muted-foreground py-4">No students found for your assigned class: {currentClassName}.</p>
+            <p className="text-center text-muted-foreground py-4">No students found for the selected class.</p>
           )}
-          {assignedClassDetails && studentAttendance.length > 0 && (
+          {studentAttendance.length > 0 && (
             <div className="mt-6 flex justify-end">
               <Button onClick={handleSubmitAttendance} disabled={isSubmitting || isLoading || !attendanceDate}>
                 {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : <><Save className="mr-2 h-4 w-4" /> Submit Attendance</>}

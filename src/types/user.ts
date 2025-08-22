@@ -1,4 +1,6 @@
 
+'use server';
+
 import type { ObjectId } from 'mongodb';
 import { z } from 'zod';
 
@@ -12,6 +14,7 @@ export interface User {
   role: UserRole;
   schoolId?: ObjectId | string;
   classId?: string; // For students: class _id they belong to. For teachers: primary class _id they can mark attendance for.
+  classIds?: string[]; // For attendance taker role to be assigned to multiple classes
   admissionId?: string; 
   avatarUrl?: string;
   phone?: string;
@@ -40,7 +43,7 @@ export interface User {
 }
 
 // Centralized AuthUser type
-export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'registrationNo'> & { requiresPasswordChange?: boolean };
+export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'registrationNo'> & { requiresPasswordChange?: boolean, classIds?: string[] };
 
 
 // Zod schema for Super Admin creating/updating School Admins
@@ -93,6 +96,20 @@ export const createTeacherFormSchema = z.object({
 });
 export type CreateTeacherFormData = z.infer<typeof createTeacherFormSchema>;
 
+// Zod schema for admin creating attendance takers
+export const createAttendanceTakerFormSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters."),
+  email: z.string().email("Invalid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  classIds: z.array(z.string()).min(1, "At least one class must be assigned."),
+});
+export type CreateAttendanceTakerFormData = z.infer<typeof createAttendanceTakerFormSchema>;
+
+export const updateAttendanceTakerFormSchema = createAttendanceTakerFormSchema.extend({
+    password: z.string().min(6).optional().or(z.literal('')),
+});
+export type UpdateAttendanceTakerFormData = z.infer<typeof updateAttendanceTakerFormSchema>;
+
 
 // Generic Zod schema for admin creating school users (teachers, students) - used by server action
 export const createSchoolUserFormSchema = z.object({
@@ -101,6 +118,7 @@ export const createSchoolUserFormSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   role: z.enum(['teacher', 'student', 'attendancetaker'], { required_error: "Role is required." }),
   classId: z.string().optional(), // This will be class _id
+  classIds: z.array(z.string()).optional(), // For attendance taker
   admissionId: z.string().optional(),
   busRouteLocation: z.string().optional(),
   busClassCategory: z.string().optional(),
@@ -136,6 +154,7 @@ export const updateSchoolUserFormSchema = z.object({
   password: z.string().min(6, { message: "New password must be at least 6 characters." }).optional().or(z.literal('')), // Optional for update
   role: z.enum(['teacher', 'student', 'attendancetaker'], { required_error: "Role is required." }), 
   classId: z.string().optional(), // This will be class _id
+  classIds: z.array(z.string()).optional(), // For attendance taker
   admissionId: z.string().optional(), 
   enableBusTransport: z.boolean().default(false).optional(),
   busRouteLocation: z.string().optional(),
@@ -171,7 +190,8 @@ export interface CreateSchoolUserServerActionFormData {
   email: string;
   password: string; // Required for create by server action
   role: 'teacher' | 'student' | 'attendancetaker';
-  classId?: string; // This will be class _id
+  classId?: string; // This will be class _id for student/teacher
+  classIds?: string[]; // For attendance taker
   admissionId?: string;
   busRouteLocation?: string;
   busClassCategory?: string;

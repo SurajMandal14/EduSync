@@ -35,7 +35,7 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
         name, email, password, role, classId, admissionId, 
         busRouteLocation, busClassCategory,
         fatherName, motherName, dob, section, rollNo,
-        symbolNo, registrationNo, district, gender, quota
+        symbolNo, registrationNo, district, gender, quota, classIds
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -63,6 +63,7 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
       role: role as UserRole,
       schoolId: userSchoolId,
       classId: (classId && classId.trim() !== "" && ObjectId.isValid(classId)) ? classId.trim() : undefined,
+      classIds: (classIds && Array.isArray(classIds)) ? classIds : undefined, // For attendance taker
       admissionId: role === 'student' ? (admissionId && admissionId.trim() !== "" ? admissionId.trim() : undefined) : undefined,
       busRouteLocation: role === 'student' ? (busRouteLocation && busRouteLocation.trim() !== "" ? busRouteLocation.trim() : undefined) : undefined,
       busClassCategory: role === 'student' ? (busClassCategory && busClassCategory.trim() !== "" ? busClassCategory.trim() : undefined) : undefined,
@@ -91,6 +92,7 @@ export async function createSchoolUser(values: CreateSchoolUserServerActionFormD
     revalidatePath('/dashboard/admin/users');
     revalidatePath('/dashboard/admin/students');
     revalidatePath('/dashboard/admin/teachers');
+    revalidatePath('/dashboard/admin/attendancetaker');
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _p, ...userWithoutPassword } = newUser;
@@ -263,6 +265,7 @@ export async function getSchoolUsers(schoolId: string): Promise<GetSchoolUsersRe
         _id: user._id.toString(),
         schoolId: user.schoolId?.toString(),
         classId: user.classId || undefined, 
+        classIds: user.classIds || undefined,
         admissionId: user.admissionId || undefined,
         busRouteLocation: user.busRouteLocation || undefined,
         busClassCategory: user.busClassCategory || undefined,
@@ -314,7 +317,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         name, email, password, role, classId, admissionId, 
         enableBusTransport, busRouteLocation, busClassCategory,
         fatherName, motherName, dob, section, rollNo, aadharNo,
-        symbolNo, registrationNo, district, gender, quota
+        symbolNo, registrationNo, district, gender, quota, classIds
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -360,11 +363,18 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
       setOperation.password = await bcrypt.hash(password, 10);
     }
     
-    // Handle classId
-    if (classId && classId.trim() !== "" && ObjectId.isValid(classId)) {
+    // Handle classId for student/teacher
+    if ((role === 'student' || role === 'teacher') && classId && classId.trim() !== "" && ObjectId.isValid(classId)) {
         setOperation.classId = classId.trim();
     } else {
         unsetOperation.classId = "";
+    }
+    
+    // Handle classIds for attendance taker
+    if (role === 'attendancetaker' && classIds && Array.isArray(classIds)) {
+        setOperation.classIds = classIds;
+    } else {
+        unsetOperation.classIds = "";
     }
 
     // Handle role-specific fields
@@ -389,7 +399,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
             unsetOperation.busRouteLocation = "";
             unsetOperation.busClassCategory = "";
         }
-    } else { // It's a teacher or attendance taker, so clear all student-specific fields
+    } else { // It's a teacher or attendance taker, so clear student-specific fields
         unsetOperation.admissionId = "";
         unsetOperation.busRouteLocation = "";
         unsetOperation.busClassCategory = "";
@@ -430,6 +440,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     revalidatePath('/dashboard/admin/users');
     revalidatePath('/dashboard/admin/students');
     revalidatePath('/dashboard/admin/teachers');
+    revalidatePath('/dashboard/admin/attendancetaker');
 
     const updatedUserDoc = await usersCollection.findOne({ _id: new ObjectId(userId) as any });
     if (!updatedUserDoc) {
@@ -446,6 +457,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         _id: updatedUserDoc._id.toString(),
         schoolId: updatedUserDoc.schoolId?.toString(),
         classId: updatedUserDoc.classId || undefined, 
+        classIds: updatedUserDoc.classIds || undefined,
         admissionId: updatedUserDoc.admissionId || undefined,
         busRouteLocation: updatedUserDoc.busRouteLocation || undefined,
         busClassCategory: updatedUserDoc.busClassCategory || undefined,
@@ -500,6 +512,8 @@ export async function deleteSchoolUser(userId: string, schoolId: string): Promis
     revalidatePath('/dashboard/admin/users');
     revalidatePath('/dashboard/admin/students');
     revalidatePath('/dashboard/admin/teachers');
+    revalidatePath('/dashboard/admin/attendancetaker');
+
     return { success: true, message: 'User deleted successfully!' };
 
   } catch (error) {
@@ -608,6 +622,7 @@ export async function getStudentsByClass(schoolId: string, classId: string): Pro
 export interface SchoolUserRoleCounts {
   students: number;
   teachers: number;
+  attendanceTakers: number;
 }
 export interface GetSchoolUserRoleCountsResult {
   success: boolean;
@@ -626,8 +641,9 @@ export async function getSchoolUserRoleCounts(schoolId: string): Promise<GetScho
 
     const studentCount = await usersCollection.countDocuments({ schoolId: new ObjectId(schoolId) as any, role: 'student' });
     const teacherCount = await usersCollection.countDocuments({ schoolId: new ObjectId(schoolId) as any, role: 'teacher' });
+    const attendanceTakerCount = await usersCollection.countDocuments({ schoolId: new ObjectId(schoolId) as any, role: 'attendancetaker' });
 
-    return { success: true, counts: { students: studentCount, teachers: teacherCount } };
+    return { success: true, counts: { students: studentCount, teachers: teacherCount, attendanceTakers: attendanceTakerCount } };
   } catch (error) {
     console.error('Get school user role counts error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';

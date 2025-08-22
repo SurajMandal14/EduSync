@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Info, UploadCloud, Briefcase } from "lucide-react";
+import { Users, Info, UploadCloud, Briefcase, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -26,8 +26,11 @@ export default function AdminUserManagementPage() {
                 </Button>
                 <Button asChild>
                     <Link href="/dashboard/admin/teachers">
-                        <Briefcase className="mr-2 h-4 w-4"/> Manage Staff (Teachers / Attendance Takers)
+                        <Briefcase className="mr-2 h-4 w-4"/> Manage Teachers
                     </Link>
+                </Button>
+                 <Button asChild variant="outline">
+                    <Link href="/dashboard/admin/attendancetaker"><UserCheck className="mr-2 h-4 w-4"/>Manage Attendance Takers</Link>
                 </Button>
                  <Button asChild variant="outline">
                     <Link href="/dashboard/admin/students/import"><UploadCloud className="mr-2 h-4 w-4"/>Bulk Import Students</Link>
