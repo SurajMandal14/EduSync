@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowRight, UserCog, ShieldAlert, BookUser, User as UserIcon, DollarSign, CheckSquare, Users, LayoutDashboard, Home, Loader2, Layers } from "lucide-react"; 
+import { ArrowRight, UserCog, ShieldAlert, BookUser, User as UserIcon, DollarSign, CheckSquare, Users, LayoutDashboard, Home, Loader2, Layers, UserCheck } from "lucide-react"; 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import type { AuthUser } from "@/types/user"; 
@@ -33,6 +33,9 @@ const roleSpecificLinks = {
     { href: "/dashboard/student/attendance", title: "My Attendance", description: "View your attendance record.", icon: CheckSquare },
     { href: "/dashboard/student/profile", title: "My Profile", description: "View your academic information.", icon: BookUser },
   ],
+  attendancetaker: [
+      { href: "/dashboard/attendancetaker", title: "Mark Attendance", description: "Mark daily student attendance for assigned classes.", icon: UserCheck },
+  ],
 };
 
 export default function DashboardPage() {
@@ -55,6 +58,7 @@ export default function DashboardPage() {
             else if (parsedUser.role === 'admin') router.replace("/dashboard/admin");
             else if (parsedUser.role === 'teacher') router.replace("/dashboard/teacher");
             else if (parsedUser.role === 'student') router.replace("/dashboard/student");
+            else if (parsedUser.role === 'attendancetaker') router.replace("/dashboard/attendancetaker");
           }
         } else {
           localStorage.removeItem('loggedInUser');
@@ -143,3 +147,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

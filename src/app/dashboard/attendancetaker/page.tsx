@@ -43,7 +43,6 @@ export default function AttendanceTakerPage() {
         const parsedUser: AuthUser & { classIds?: string[] } = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'attendancetaker') {
           setAuthUser(parsedUser);
-          // Pre-fetch class names for the dropdown
           if (parsedUser.classIds && parsedUser.schoolId) {
             const classPromises = parsedUser.classIds.map(id => getClassDetailsById(id, parsedUser.schoolId!));
             Promise.all(classPromises).then(results => {
@@ -230,3 +229,5 @@ export default function AttendanceTakerPage() {
     </div>
   );
 }
+
+    

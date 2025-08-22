@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Layers as ScholrIcon, UserCircle, LogOut, Menu, Settings, Users, DollarSign, CheckSquare, LayoutDashboard, BookUser, ShieldAlert, User as UserIcon, BookCopy, TicketPercent, BarChart2, Briefcase, Award } from "lucide-react";
+import { Layers as ScholrIcon, UserCircle, LogOut, Menu, Settings, Users, DollarSign, CheckSquare, LayoutDashboard, BookUser, ShieldAlert, User as UserIcon, BookCopy, TicketPercent, BarChart2, Briefcase, Award, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -50,6 +50,10 @@ const navLinksBase = {
     { href: "/dashboard/student/attendance", label: "My Attendance", icon: CheckSquare },
     { href: "/dashboard/student/results", label: "Exam Results", icon: Award },
     { href: "/dashboard/student/profile", label: "My Profile", icon: BookUser },
+  ],
+  attendancetaker: [
+    { href: "/dashboard/attendancetaker", label: "Mark Attendance", icon: UserCheck },
+    { href: "/dashboard/profile", label: "My Profile", icon: UserIcon },
   ],
 };
 
@@ -335,3 +339,5 @@ export function Header() {
     </header>
   );
 }
+
+    
