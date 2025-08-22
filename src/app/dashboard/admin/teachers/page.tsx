@@ -5,14 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Search, Loader2 } from "lucide-react";
+import { Users, Search, Loader2, Trash2, Edit3 } from "lucide-react";
 import type { User as AppUser } from "@/types/user";
 import { useEffect, useState, useCallback } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
-import { getSchoolUsers } from "@/app/actions/schoolUsers"; 
+import { getSchoolUsers, deleteSchoolUser } from "@/app/actions/schoolUsers"; 
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
 type SchoolStaff = Partial<AppUser>; 
@@ -24,6 +35,8 @@ export default function AdminStaffManagementPage() {
   
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [userToDelete, setUserToDelete] = useState<SchoolStaff | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -65,6 +78,21 @@ export default function AdminStaffManagementPage() {
     else { setIsLoadingData(false); setAllSchoolStaff([]); }
   }, [authUser, fetchInitialData]);
 
+  const handleDeleteClick = (user: SchoolStaff) => setUserToDelete(user);
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete?._id || !authUser?.schoolId) return;
+    setIsDeleting(true);
+    const result = await deleteSchoolUser(userToDelete._id.toString(), authUser.schoolId.toString());
+    setIsDeleting(false);
+    if (result.success) {
+      toast({ title: "User Deleted", description: result.message });
+      fetchInitialData(); 
+    } else {
+      toast({ variant: "destructive", title: "Deletion Failed", description: result.error || result.message });
+    }
+    setUserToDelete(null);
+  };
   
   const filteredStaff = allSchoolStaff.filter(user => 
     Object.values(user).some(val => String(val).toLowerCase().includes(searchTerm.toLowerCase()))
@@ -87,15 +115,14 @@ export default function AdminStaffManagementPage() {
             <Users className="mr-2 h-6 w-6" /> Staff Management
           </CardTitle>
           <CardDescription>
-            Overview of all teachers and attendance takers in your school.
+            Overview of all teachers and attendance takers in your school. To add or edit staff, please go to the main User Management page.
           </CardDescription>
         </CardHeader>
          <CardContent>
              <div className="flex flex-wrap gap-2 items-center">
                 <Button asChild>
-                    <Link href="/dashboard/admin/attendancetaker">Manage Attendance Takers</Link>
+                    <Link href="/dashboard/admin/users">Back to User Management</Link>
                 </Button>
-                {/* Add a button for managing teachers if a separate page is made */}
             </div>
          </CardContent>
       </Card>
@@ -115,7 +142,7 @@ export default function AdminStaffManagementPage() {
              <div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading staff members...</p></div>
           ) : filteredStaff.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Date Created</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {filteredStaff.map((staff) => (
                 <TableRow key={staff._id?.toString()}>
@@ -123,6 +150,24 @@ export default function AdminStaffManagementPage() {
                   <TableCell>{staff.email}</TableCell>
                   <TableCell className="capitalize">{staff.role}</TableCell>
                   <TableCell>{staff.createdAt ? format(new Date(staff.createdAt as string), "PP") : 'N/A'}</TableCell>
+                   <TableCell className="space-x-1">
+                    <AlertDialog open={userToDelete?._id === staff._id} onOpenChange={(open) => !open && setUserToDelete(null)}>
+                      <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteClick(staff)} disabled={isDeleting}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                      {userToDelete && userToDelete._id === staff._id && (
+                        <AlertDialogContent>
+                          <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>Delete <span className="font-semibold">{userToDelete.name} ({userToDelete.email})</span>?</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setUserToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      )}
+                    </AlertDialog>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -135,4 +180,3 @@ export default function AdminStaffManagementPage() {
     </div>
   );
 }
-
