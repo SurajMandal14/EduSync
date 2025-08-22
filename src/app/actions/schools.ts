@@ -252,8 +252,8 @@ export async function getSchoolById(schoolId: string): Promise<GetSchoolByIdResu
         terms: (bfs.terms || []).map((t: any) => ({ term: t.term, amount: t.amount }))
       })),
       reportCardTemplate: schoolDoc.reportCardTemplate,
-      allowStudentsToViewPublishedReports: schoolDoc.allowStudentsToViewPublishedReports === undefined ? false : schoolDoc.allowStudentsToViewPublishedReports, // Default to false if missing
-      hasAttendanceTaker: schoolDoc.hasAttendanceTaker === undefined ? false : doc.hasAttendanceTaker,
+      allowStudentsToViewPublishedReports: schoolDoc.allowStudentsToViewPublishedReports === undefined ? false : schoolDoc.allowStudentsToViewPublishedReports,
+      hasAttendanceTaker: schoolDoc.hasAttendanceTaker === undefined ? false : schoolDoc.hasAttendanceTaker,
       createdAt: new Date(schoolDoc.createdAt).toISOString(),
       updatedAt: new Date(schoolDoc.updatedAt).toISOString(),
     };
