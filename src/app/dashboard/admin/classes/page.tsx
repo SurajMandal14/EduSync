@@ -66,7 +66,6 @@ export default function AdminClassManagementPage() {
     defaultValues: {
       name: "",
       section: "",
-      classTeacherId: "", 
       subjects: [{ name: "", teacherId: "" }],
       secondLanguageSubjectName: "",
     },
@@ -148,7 +147,6 @@ export default function AdminClassManagementPage() {
       form.reset({
         name: editingClass.name,
         section: editingClass.section || "",
-        classTeacherId: editingClass.classTeacherId?.toString() || "",
         subjects: editingClass.subjects.length > 0 
           ? editingClass.subjects.map(s => ({ name: s.name, teacherId: s.teacherId?.toString() || "" })) 
           : [{ name: "", teacherId: "" }],
@@ -159,7 +157,7 @@ export default function AdminClassManagementPage() {
 
   const openAddForm = () => {
     setEditingClass(null);
-    form.reset({ name: "", section: "", classTeacherId: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
+    form.reset({ name: "", section: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
     setShowAddForm(true);
   };
 
@@ -223,7 +221,7 @@ export default function AdminClassManagementPage() {
             <BookCopy className="mr-2 h-6 w-6" /> Class Management
           </CardTitle>
           <CardDescription>
-            Create and manage classes, assign class teachers, and define subjects with their respective teachers.
+            Create and manage classes and define subjects with their respective teachers.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -242,7 +240,7 @@ export default function AdminClassManagementPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField 
                   control={form.control} 
                   name="name" 
@@ -277,30 +275,6 @@ export default function AdminClassManagementPage() {
                   <FormItem>
                     <FormLabel>Section (e.g., A)</FormLabel>
                     <FormControl><Input placeholder="e.g., A" {...field} disabled={isSubmitting} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}/>
-                <FormField control={form.control} name="classTeacherId" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center"><UserCheck className="mr-2 h-4 w-4 text-muted-foreground"/>Assign Class Teacher (Optional)</FormLabel>
-                    <Select
-                      onValueChange={(value) => {
-                        field.onChange(value === NONE_TEACHER_VALUE ? "" : value);
-                      }}
-                      value={field.value || ""} 
-                      disabled={isSubmitting || isLoadingData || availableTeachers.length === 0}
-                    >
-                      <FormControl><SelectTrigger>
-                          <SelectValue placeholder={availableTeachers.length > 0 ? "Select a teacher" : "No teachers available"} />
-                      </SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value={NONE_TEACHER_VALUE}>None</SelectItem>
-                        {availableTeachers.map(teacher => (
-                          <SelectItem key={teacher._id!.toString()} value={teacher._id!.toString()}>{teacher.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription className="text-xs">The class teacher can mark attendance for this class.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}/>
@@ -407,7 +381,6 @@ export default function AdminClassManagementPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Class (Name - Section)</TableHead>
-                <TableHead>Class Teacher</TableHead>
                 <TableHead>Subjects (Teachers)</TableHead>
                 <TableHead>2nd Lang</TableHead>
                 <TableHead>Created On</TableHead>
@@ -418,7 +391,6 @@ export default function AdminClassManagementPage() {
               {schoolClasses.map((cls) => (
                 <TableRow key={cls._id.toString()}>
                   <TableCell className="font-medium">{classDisplayName(cls)}</TableCell>
-                  <TableCell>{cls.classTeacherName || (cls.classTeacherId ? 'N/A' : 'Not Assigned')}</TableCell>
                   <TableCell>
                     {cls.subjects.length > 0 ? (
                         <ul className="list-disc pl-4 text-xs">
@@ -465,4 +437,3 @@ export default function AdminClassManagementPage() {
     </div>
   );
 }
-    
