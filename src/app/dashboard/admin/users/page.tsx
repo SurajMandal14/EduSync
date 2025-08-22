@@ -26,11 +26,8 @@ export default function AdminUserManagementPage() {
                 </Button>
                 <Button asChild>
                     <Link href="/dashboard/admin/teachers">
-                        <Briefcase className="mr-2 h-4 w-4"/> Manage Teachers
+                        <Briefcase className="mr-2 h-4 w-4"/> Manage Staff
                     </Link>
-                </Button>
-                 <Button asChild variant="outline">
-                    <Link href="/dashboard/admin/attendancetaker"><UserCheck className="mr-2 h-4 w-4"/>Manage Attendance Takers</Link>
                 </Button>
                  <Button asChild variant="outline">
                     <Link href="/dashboard/admin/students/import"><UploadCloud className="mr-2 h-4 w-4"/>Bulk Import Students</Link>
@@ -41,3 +38,5 @@ export default function AdminUserManagementPage() {
     </div>
   );
 }
+
+    

@@ -4,95 +4,26 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, Briefcase, XCircle, BookCopy } from "lucide-react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription,
-} from "@/components/ui/form";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
-import { createSchoolUser, getSchoolUsers, updateSchoolUser, deleteSchoolUser } from "@/app/actions/schoolUsers";
-import { 
-    createTeacherFormSchema, type CreateTeacherFormData,
-    updateSchoolUserFormSchema, type UpdateSchoolUserFormData,
-    type CreateSchoolUserServerActionFormData,
-    type UserRole,
-} from '@/types/user';
-import { getSchoolById } from "@/app/actions/schools";
-import { getSchoolClasses, getClassesForSchoolAsOptions } from "@/app/actions/classes"; 
+import { Users, Search, Loader2 } from "lucide-react";
 import type { User as AppUser } from "@/types/user";
-import type { School } from "@/types/school";
-import type { SchoolClass } from "@/types/classes"; 
 import { useEffect, useState, useCallback } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
+import { getSchoolUsers } from "@/app/actions/schoolUsers"; 
+import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
-type SchoolTeacher = Partial<AppUser>; 
 
-const NONE_CLASS_VALUE = "__NONE_CLASS_ID__";
+type SchoolStaff = Partial<AppUser>; 
 
-interface ClassOption {
-    value: string;
-    label: string;
-}
-
-// Extend the form data type to include the optional role and classId
-type StaffFormData = CreateTeacherFormData & { role?: UserRole, classId?: string };
-
-export default function AdminTeacherManagementPage() {
+export default function AdminStaffManagementPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [schoolDetails, setSchoolDetails] = useState<School | null>(null); 
-  const [managedClasses, setManagedClasses] = useState<SchoolClass[]>([]); 
-  const [allSchoolTeachers, setAllSchoolTeachers] = useState<SchoolTeacher[]>([]);
-  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [allSchoolStaff, setAllSchoolStaff] = useState<SchoolStaff[]>([]);
   
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  
-  const [editingTeacher, setEditingTeacher] = useState<SchoolTeacher | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-
-  const [teacherToDelete, setTeacherToDelete] = useState<SchoolTeacher | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const staffForm = useForm<StaffFormData>({
-    resolver: zodResolver(createTeacherFormSchema), // Still uses the same validation base
-    defaultValues: { name: "", email: "", password: "", role: 'teacher', classId: "" },
-  });
-
-  const editForm = useForm<UpdateSchoolUserFormData>({
-    resolver: zodResolver(updateSchoolUserFormSchema),
-    defaultValues: { 
-        name: "", email: "", password: "", role: 'teacher', classId: "",
-        admissionId: undefined, enableBusTransport: false, busRouteLocation: undefined, busClassCategory: undefined,
-        fatherName: undefined, motherName: undefined, dob: undefined, section: undefined, rollNo: undefined, aadharNo: undefined,
-        symbolNo: undefined, registrationNo: undefined, district: undefined, gender: undefined, quota: undefined,
-    },
-  });
-
-  const staffFormRole = staffForm.watch('role');
-  const editFormRole = editForm.watch('role');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -103,11 +34,10 @@ export default function AdminTeacherManagementPage() {
           setAuthUser(parsedUser);
         } else {
           setAuthUser(null);
-          toast({ variant: "destructive", title: "Access Denied", description: "You must be a school admin." });
         }
       } catch (e) { setAuthUser(null); }
     } else { setAuthUser(null); }
-  }, [toast]);
+  }, []);
 
   const fetchInitialData = useCallback(async () => {
     if (!authUser || !authUser.schoolId) {
@@ -116,37 +46,13 @@ export default function AdminTeacherManagementPage() {
     }
     setIsLoadingData(true);
     try {
-      const [schoolResult, usersResult, classesResult, classOptionsResult] = await Promise.all([
-        getSchoolById(authUser.schoolId.toString()),
-        getSchoolUsers(authUser.schoolId.toString()),
-        getSchoolClasses(authUser.schoolId.toString()),
-        getClassesForSchoolAsOptions(authUser.schoolId.toString())
-      ]);
-
-      if (schoolResult.success && schoolResult.school) {
-        setSchoolDetails(schoolResult.school);
-      } else {
-        toast({ variant: "destructive", title: "Error", description: schoolResult.message || "Failed to load school details." });
-        setSchoolDetails(null);
-      }
-      
+      const usersResult = await getSchoolUsers(authUser.schoolId.toString());
       if (usersResult.success && usersResult.users) {
-        // Filter for teachers and attendance takers
-        setAllSchoolTeachers(usersResult.users.filter(u => u.role === 'teacher' || u.role === 'attendancetaker'));
+        setAllSchoolStaff(usersResult.users.filter(u => u.role === 'teacher' || u.role === 'attendancetaker'));
       } else {
         toast({ variant: "destructive", title: "Error", description: usersResult.message || "Failed to load staff." });
-        setAllSchoolTeachers([]);
+        setAllSchoolStaff([]);
       }
-
-      if (classesResult.success && classesResult.classes) {
-        setManagedClasses(classesResult.classes);
-      } else {
-        toast({ variant: "warning", title: "Class List Error", description: classesResult.message || "Failed to load managed class list." });
-        setManagedClasses([]);
-      }
-      
-      setClassOptions(classOptionsResult);
-
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Unexpected error fetching data." });
     } finally {
@@ -156,95 +62,13 @@ export default function AdminTeacherManagementPage() {
 
   useEffect(() => {
     if (authUser?.schoolId) fetchInitialData();
-    else { setIsLoadingData(false); setAllSchoolTeachers([]); setSchoolDetails(null); setManagedClasses([]); }
+    else { setIsLoadingData(false); setAllSchoolStaff([]); }
   }, [authUser, fetchInitialData]);
 
-  useEffect(() => {
-    if (editingTeacher) {
-      editForm.reset({
-        name: editingTeacher.name || "",
-        email: editingTeacher.email || "",
-        password: "", 
-        role: editingTeacher.role as UserRole, // Set role for edit form
-        classId: editingTeacher.classId || "", 
-      });
-      setShowAddForm(false);
-    }
-  }, [editingTeacher, editForm]);
-
-  async function handleStaffSubmit(values: StaffFormData) {
-    if (!authUser?.schoolId) return;
-    setIsSubmitting(true);
-    const payload: CreateSchoolUserServerActionFormData = { 
-        ...values, 
-        role: values.role || 'teacher', // Default to teacher if not provided
-        classId: values.classId === NONE_CLASS_VALUE ? undefined : values.classId,
-    };
-    const result = await createSchoolUser(payload, authUser.schoolId.toString());
-    setIsSubmitting(false);
-    if (result.success) {
-      toast({ title: "Staff Created", description: result.message });
-      staffForm.reset();
-      setShowAddForm(false);
-      fetchInitialData(); 
-    } else {
-      toast({ variant: "destructive", title: "Creation Failed", description: result.error || result.message });
-    }
-  }
   
-  async function handleEditSubmit(values: UpdateSchoolUserFormData) {
-    if (!authUser?.schoolId || !editingTeacher?._id) return;
-    setIsSubmitting(true);
-    const result = await updateSchoolUser(editingTeacher._id.toString(), authUser.schoolId.toString(), values);
-    setIsSubmitting(false);
-    if (result.success) {
-      toast({ title: "Staff Updated", description: result.message });
-      setEditingTeacher(null);
-      fetchInitialData(); 
-    } else {
-      toast({ variant: "destructive", title: "Update Failed", description: result.error || result.message });
-    }
-  }
-
-  const handleEditClick = (teacher: SchoolTeacher) => { setEditingTeacher(teacher); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const cancelEdit = () => setEditingTeacher(null);
-  const handleDeleteClick = (teacher: SchoolTeacher) => setTeacherToDelete(teacher);
-
-  const handleConfirmDelete = async () => {
-    if (!teacherToDelete?._id || !authUser?.schoolId) return;
-    setIsDeleting(true);
-    const result = await deleteSchoolUser(teacherToDelete._id.toString(), authUser.schoolId.toString());
-    setIsDeleting(false);
-    if (result.success) {
-      toast({ title: "Staff Member Deleted", description: result.message });
-      fetchInitialData(); 
-    } else {
-      toast({ variant: "destructive", title: "Deletion Failed", description: result.error || result.message });
-    }
-    setTeacherToDelete(null);
-  };
-  
-  const filteredTeachers = allSchoolTeachers.filter(user => 
+  const filteredStaff = allSchoolStaff.filter(user => 
     Object.values(user).some(val => String(val).toLowerCase().includes(searchTerm.toLowerCase()))
   );
-
-  const getClassNameFromId = (classId: string | undefined): string => {
-    if (!classId) return 'N/A';
-    const foundClass = classOptions.find(cls => cls.value === classId);
-    return foundClass?.label || 'N/A (Invalid ID)';
-  };
-  
-  const openAddForm = () => {
-    setEditingTeacher(null);
-    staffForm.reset({ name: "", email: "", password: "", role: 'teacher', classId: "" });
-    setShowAddForm(true);
-  }
-
-  const cancelAddForm = () => {
-    setShowAddForm(false);
-    staffForm.reset();
-  }
-
 
   if (!authUser && !isLoadingData) { 
     return (
@@ -260,188 +84,45 @@ export default function AdminTeacherManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
-            <Briefcase className="mr-2 h-6 w-6" /> Staff Management
+            <Users className="mr-2 h-6 w-6" /> Staff Management
           </CardTitle>
           <CardDescription>
-            Manage teacher and attendance taker accounts for {schoolDetails?.schoolName || "your school"}.
+            Overview of all teachers and attendance takers in your school.
           </CardDescription>
         </CardHeader>
+         <CardContent>
+             <div className="flex flex-wrap gap-2 items-center">
+                <Button asChild>
+                    <Link href="/dashboard/admin/attendancetaker">Manage Attendance Takers</Link>
+                </Button>
+                {/* Add a button for managing teachers if a separate page is made */}
+            </div>
+         </CardContent>
       </Card>
-      
-      {!editingTeacher && !showAddForm && (
-        <Button onClick={openAddForm}>
-          <UserPlus className="mr-2 h-4 w-4" /> Add New Staff Member
-        </Button>
-      )}
-
-
-      {editingTeacher && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center"><Edit3 className="mr-2 h-5 w-5"/>Edit Staff: {editingTeacher.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Form {...editForm}>
-              <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField control={editForm.control} name="name" render={({ field }) => (
-                      <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
-                  )}/>
-                  <FormField control={editForm.control} name="email" render={({ field }) => (
-                      <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
-                  )}/>
-                  <FormField control={editForm.control} name="password" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>New Password</FormLabel>
-                        <FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} /></FormControl>
-                        <FormDescription className="text-xs">Leave blank to keep current password.</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                  )}/>
-                   <FormItem>
-                        <FormLabel>Role</FormLabel>
-                        <FormControl><Input value={editingTeacher.role} disabled /></FormControl>
-                        <FormDescription className="text-xs">Role cannot be changed after creation.</FormDescription>
-                    </FormItem>
-                  {editFormRole === 'attendancetaker' && (
-                       <FormField control={editForm.control} name="classId" render={({ field }) => ( 
-                            <FormItem>
-                                <FormLabel className="flex items-center"><BookCopy className="mr-2 h-4 w-4 text-muted-foreground"/>Assign Primary Class</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value || ""} disabled={isSubmitting || classOptions.length === 0}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
-                                    <SelectContent>
-                                        <SelectItem value={NONE_CLASS_VALUE}>-- None --</SelectItem>
-                                        {classOptions.map((opt)=>(<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                                <FormDescription className="text-xs">This user will mark attendance for this class.</FormDescription>
-                                <FormMessage/>
-                            </FormItem>
-                        )}/>
-                    )}
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={isSubmitting || isLoadingData}>
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
-                    Update Staff Member
-                  </Button>
-                  <Button type="button" variant="outline" onClick={cancelEdit} disabled={isSubmitting}><XCircle className="mr-2 h-4 w-4" />Cancel</Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      )}
-      
-      {showAddForm && !editingTeacher && (
-        <Card>
-            <CardHeader><CardTitle className="flex items-center"><UserPlus className="mr-2 h-5 w-5"/>Add New Staff Member</CardTitle></CardHeader>
-            <CardContent>
-                <Form {...staffForm}>
-                <form onSubmit={staffForm.handleSubmit(handleStaffSubmit)} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <FormField control={staffForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Teacher" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={staffForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="staff@example.com" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={staffForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
-                        
-                        {schoolDetails?.hasAttendanceTaker && (
-                           <FormField
-                            control={staffForm.control}
-                            name="role"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Role</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
-                                    <FormControl><SelectTrigger>
-                                        <SelectValue placeholder="Select a role" />
-                                    </SelectTrigger></FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="teacher">Teacher</SelectItem>
-                                        <SelectItem value="attendancetaker">Attendance Taker</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                        )}
-                        {staffFormRole === 'attendancetaker' && (
-                           <FormField control={staffForm.control} name="classId" render={({ field }) => ( 
-                                <FormItem>
-                                    <FormLabel className="flex items-center"><BookCopy className="mr-2 h-4 w-4 text-muted-foreground"/>Assign Primary Class</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || classOptions.length === 0}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value={NONE_CLASS_VALUE}>-- None --</SelectItem>
-                                            {classOptions.map((opt)=>(<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormDescription className="text-xs">This user will mark attendance for this class.</FormDescription>
-                                    <FormMessage/>
-                                </FormItem>
-                            )}/>
-                        )}
-
-                    </div>
-                    <div className="flex gap-2">
-                        <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || isLoadingData}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}Add Staff Member</Button>
-                        <Button type="button" variant="outline" onClick={cancelAddForm} disabled={isSubmitting}>
-                            <XCircle className="mr-2 h-4 w-4" /> Cancel
-                        </Button>
-                    </div>
-                </form>
-                </Form>
-            </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <CardTitle>Staff List ({schoolDetails?.schoolName || "Your School"})</CardTitle>
+            <CardTitle>Staff List</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Input placeholder="Search staff..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolTeachers.length}/>
-              <Button variant="outline" size="icon" disabled={isLoadingData || !allSchoolTeachers.length}><Search className="h-4 w-4" /></Button>
+              <Input placeholder="Search staff..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolStaff.length}/>
+              <Button variant="outline" size="icon" disabled={isLoadingData || !allSchoolStaff.length}><Search className="h-4 w-4" /></Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoadingData ? (
              <div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading staff members...</p></div>
-          ) : filteredTeachers.length > 0 ? (
+          ) : filteredStaff.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Assigned Class</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Date Created</TableHead></TableRow></TableHeader>
             <TableBody>
-              {filteredTeachers.map((teacher) => (
-                <TableRow key={teacher._id?.toString()}>
-                  <TableCell>{teacher.name}</TableCell>
-                  <TableCell>{teacher.email}</TableCell>
-                  <TableCell className="capitalize">{teacher.role}</TableCell>
-                  <TableCell>{getClassNameFromId(teacher.classId)}</TableCell>
-                  <TableCell>{teacher.createdAt ? format(new Date(teacher.createdAt as string), "PP") : 'N/A'}</TableCell>
-                  <TableCell className="space-x-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(teacher)} disabled={isSubmitting || isDeleting}><Edit3 className="h-4 w-4" /></Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteClick(teacher)} disabled={isSubmitting || isDeleting}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      {teacherToDelete && teacherToDelete._id === teacher._id && (
-                        <AlertDialogContent>
-                          <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>Delete <span className="font-semibold">{teacherToDelete.name} ({teacherToDelete.email})</span>?</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel onClick={() => setTeacherToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      )}
-                    </AlertDialog>
-                  </TableCell>
+              {filteredStaff.map((staff) => (
+                <TableRow key={staff._id?.toString()}>
+                  <TableCell>{staff.name}</TableCell>
+                  <TableCell>{staff.email}</TableCell>
+                  <TableCell className="capitalize">{staff.role}</TableCell>
+                  <TableCell>{staff.createdAt ? format(new Date(staff.createdAt as string), "PP") : 'N/A'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -454,3 +135,4 @@ export default function AdminTeacherManagementPage() {
     </div>
   );
 }
+

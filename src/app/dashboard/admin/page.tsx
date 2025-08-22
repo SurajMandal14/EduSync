@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { UsersRound, BadgeDollarSign, ClipboardCheck, AreaChart, Settings, Contact, Library, Percent, Loader2, GraduationCap, Users } from "lucide-react";
+import { UsersRound, BadgeDollarSign, ClipboardCheck, AreaChart, Settings, Contact, Library, Percent, Loader2, GraduationCap, Users, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { AuthUser } from "@/types/user";
 import type { School } from "@/types/school";
@@ -158,7 +158,7 @@ export default function AdminDashboardPage() {
             icon={Contact}
             isLoading={isLoadingUserCounts}
             link="/dashboard/admin/teachers"
-            linkText="Manage Teachers"
+            linkText="Manage Staff"
         />
         <StatCard
             title="Today's Attendance"
@@ -179,7 +179,7 @@ export default function AdminDashboardPage() {
             <CardTitle>User Management</CardTitle>
           </CardHeader>
           <CardContent>
-            <CardDescription>Add, edit, and manage student & teacher accounts.</CardDescription>
+            <CardDescription>Add, edit, and manage student & staff accounts.</CardDescription>
             <Button asChild className="mt-4">
               <Link href="/dashboard/admin/users">Manage Users</Link>
             </Button>
@@ -192,7 +192,7 @@ export default function AdminDashboardPage() {
             <CardTitle>Class Management</CardTitle>
           </CardHeader>
           <CardContent>
-            <CardDescription>Define classes, assign class teachers, and manage subjects.</CardDescription>
+            <CardDescription>Define classes and manage subjects offered.</CardDescription>
             <Button asChild className="mt-4">
               <Link href="/dashboard/admin/classes">Manage Classes</Link>
             </Button>
@@ -254,3 +254,5 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+
+    
