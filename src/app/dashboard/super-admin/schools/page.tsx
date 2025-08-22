@@ -61,6 +61,7 @@ export default function SchoolManagementPage() {
       schoolLogoUrl: "",
       reportCardTemplate: 'none',
       allowStudentsToViewPublishedReports: false,
+      hasAttendanceTaker: false,
     },
   });
 
@@ -98,6 +99,7 @@ export default function SchoolManagementPage() {
     schoolLogoUrl: school.schoolLogoUrl || "", 
     reportCardTemplate: school.reportCardTemplate || 'none',
     allowStudentsToViewPublishedReports: school.allowStudentsToViewPublishedReports || false,
+    hasAttendanceTaker: school.hasAttendanceTaker || false,
     tuitionFees: school.tuitionFees?.length > 0 ? school.tuitionFees.map(tf => ({ 
       className: tf.className,
       terms: tf.terms && tf.terms.length === 3 ? tf.terms.map(t => ({term: t.term, amount: t.amount || 0})) : [...DEFAULT_TERMS],
@@ -118,6 +120,7 @@ export default function SchoolManagementPage() {
       schoolLogoUrl: "",
       reportCardTemplate: 'none',
       allowStudentsToViewPublishedReports: false,
+      hasAttendanceTaker: false,
     });
     setShowAddForm(true);
   };
@@ -140,6 +143,7 @@ export default function SchoolManagementPage() {
       schoolLogoUrl: "",
       reportCardTemplate: 'none',
       allowStudentsToViewPublishedReports: false,
+      hasAttendanceTaker: false,
     });
   };
 
@@ -297,6 +301,29 @@ export default function SchoolManagementPage() {
                         </FormControl>
                         </FormItem>
                     )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="hasAttendanceTaker"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm md:col-span-1">
+                                <div className="space-y-0.5">
+                                    <FormLabel className="text-base flex items-center">
+                                        Enable Attendance Taker Role
+                                    </FormLabel>
+                                    <p className="text-xs text-muted-foreground">
+                                        If enabled, a user with the 'Attendance Taker' role will mark attendance for all classes.
+                                    </p>
+                                </div>
+                                <FormControl>
+                                    <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        disabled={isSubmitting}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
                     />
                 </div>
 
@@ -511,6 +538,11 @@ export default function SchoolManagementPage() {
                   <p className="text-xs text-muted-foreground">Student Report View: 
                     <span className={`font-medium ${school.allowStudentsToViewPublishedReports ? 'text-green-600' : 'text-red-600'}`}>
                       {school.allowStudentsToViewPublishedReports ? ' Enabled' : ' Disabled'}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Attendance Taker Role: 
+                    <span className={`font-medium ${school.hasAttendanceTaker ? 'text-green-600' : 'text-red-600'}`}>
+                      {school.hasAttendanceTaker ? ' Enabled' : ' Disabled'}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground">Created: {new Date(school.createdAt).toLocaleDateString()}</p>
