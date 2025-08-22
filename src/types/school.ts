@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 export interface TermFee {
@@ -39,6 +40,7 @@ export interface School {
   busFeeStructures?: BusFeeLocationCategory[]; // Added new field
   reportCardTemplate?: ReportCardTemplateKey;
   allowStudentsToViewPublishedReports?: boolean; // New field
+  hasAttendanceTaker?: boolean; // New field for the attendance taker role
   createdAt: Date | string; // Allow string for client-side
   updatedAt: Date | string; // Allow string for client-side
   academicYear?: string; // Added from student data context
@@ -72,7 +74,8 @@ export const schoolFormSchema = z.object({
   reportCardTemplate: z.custom<ReportCardTemplateKey>((val) => {
     return typeof val === 'string' && Object.keys(REPORT_CARD_TEMPLATES).includes(val);
   }, { message: "Invalid report card template selected." }).optional().default('none'),
-  allowStudentsToViewPublishedReports: z.boolean().default(false).optional(), // New field in schema
+  allowStudentsToViewPublishedReports: z.boolean().default(false).optional(),
+  hasAttendanceTaker: z.boolean().default(false).optional(), // New field in schema
 });
 
 export type SchoolFormData = z.infer<typeof schoolFormSchema>;

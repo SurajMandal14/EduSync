@@ -1,13 +1,12 @@
 
 
-
 // Basic User type definition
 // This will be expanded as we add more user-specific fields.
 
 import type { ObjectId } from 'mongodb';
 import { z } from 'zod';
 
-export type UserRole = 'superadmin' | 'admin' | 'teacher' | 'student';
+export type UserRole = 'superadmin' | 'admin' | 'teacher' | 'student' | 'attendancetaker';
 
 export interface User {
   _id: ObjectId | string;
@@ -104,7 +103,7 @@ export const createSchoolUserFormSchema = z.object({
   name: z.string().min(1, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  role: z.enum(['teacher', 'student'], { required_error: "Role is required." }),
+  role: z.enum(['teacher', 'student', 'attendancetaker'], { required_error: "Role is required." }),
   classId: z.string().optional(), // This will be class _id
   admissionId: z.string().optional(),
   busRouteLocation: z.string().optional(),
@@ -139,7 +138,7 @@ export const updateSchoolUserFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "New password must be at least 6 characters." }).optional().or(z.literal('')), // Optional for update
-  role: z.enum(['teacher', 'student'], { required_error: "Role is required." }), 
+  role: z.enum(['teacher', 'student', 'attendancetaker'], { required_error: "Role is required." }), 
   classId: z.string().optional(), // This will be class _id
   admissionId: z.string().optional(), 
   enableBusTransport: z.boolean().default(false).optional(),
@@ -175,7 +174,7 @@ export interface CreateSchoolUserServerActionFormData {
   name: string;
   email: string;
   password: string; // Required for create by server action
-  role: 'teacher' | 'student';
+  role: 'teacher' | 'student' | 'attendancetaker';
   classId?: string; // This will be class _id
   admissionId?: string;
   busRouteLocation?: string;
