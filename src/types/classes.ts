@@ -1,6 +1,4 @@
 
-'use server';
-
 import { z } from 'zod';
 import type { ObjectId } from 'mongodb';
 
