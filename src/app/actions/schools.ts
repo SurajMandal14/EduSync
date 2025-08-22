@@ -24,7 +24,7 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
       return { success: false, message: 'Validation failed', error: errors || 'Invalid fields!' };
     }
 
-    const { schoolName, tuitionFees, schoolLogoUrl, reportCardTemplate, busFeeStructures, allowStudentsToViewPublishedReports } = validatedFields.data;
+    const { schoolName, tuitionFees, schoolLogoUrl, reportCardTemplate, busFeeStructures, allowStudentsToViewPublishedReports, hasAttendanceTaker } = validatedFields.data;
 
     const { db } = await connectToDatabase();
     const schoolsCollection = db.collection<Omit<School, '_id'>>('schools');
@@ -48,7 +48,8 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
       })) : [],
       schoolLogoUrl: schoolLogoUrl || undefined,
       reportCardTemplate: reportCardTemplate || 'none',
-      allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false, // Initialize new field
+      allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
+      hasAttendanceTaker: hasAttendanceTaker || false, // Save the new field
     };
 
     const schoolToInsert = {
@@ -102,7 +103,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
       return { success: false, message: 'Validation failed', error: errors || 'Invalid fields!' };
     }
 
-    const { schoolName, tuitionFees, reportCardTemplate, schoolLogoUrl, busFeeStructures, allowStudentsToViewPublishedReports } = validatedFields.data;
+    const { schoolName, tuitionFees, reportCardTemplate, schoolLogoUrl, busFeeStructures, allowStudentsToViewPublishedReports, hasAttendanceTaker } = validatedFields.data;
 
     const { db } = await connectToDatabase();
     const schoolsCollection = db.collection<School>('schools');
@@ -125,7 +126,8 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
         })),
       })) : [],
       reportCardTemplate: reportCardTemplate || 'none',
-      allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false, // Update new field
+      allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
+      hasAttendanceTaker: hasAttendanceTaker || false, // Update the new field
       updatedAt: new Date(),
     };
     
@@ -154,7 +156,8 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
         _id: updatedSchoolDoc._id.toString(),
         createdAt: new Date(updatedSchoolDoc.createdAt).toISOString(), 
         updatedAt: new Date(updatedSchoolDoc.updatedAt).toISOString(),
-        allowStudentsToViewPublishedReports: updatedSchoolDoc.allowStudentsToViewPublishedReports, // Ensure it's included
+        allowStudentsToViewPublishedReports: updatedSchoolDoc.allowStudentsToViewPublishedReports,
+        hasAttendanceTaker: updatedSchoolDoc.hasAttendanceTaker, // Ensure it's included
      };
 
     return {
@@ -200,6 +203,7 @@ export async function getSchools(): Promise<GetSchoolsResult> {
       })),
       reportCardTemplate: doc.reportCardTemplate,
       allowStudentsToViewPublishedReports: doc.allowStudentsToViewPublishedReports === undefined ? false : doc.allowStudentsToViewPublishedReports, // Default to false if missing
+      hasAttendanceTaker: doc.hasAttendanceTaker === undefined ? false : doc.hasAttendanceTaker, // Default to false if missing
       createdAt: new Date(doc.createdAt).toISOString(),
       updatedAt: new Date(doc.updatedAt).toISOString(),
     }));
@@ -249,6 +253,7 @@ export async function getSchoolById(schoolId: string): Promise<GetSchoolByIdResu
       })),
       reportCardTemplate: schoolDoc.reportCardTemplate,
       allowStudentsToViewPublishedReports: schoolDoc.allowStudentsToViewPublishedReports === undefined ? false : schoolDoc.allowStudentsToViewPublishedReports, // Default to false if missing
+      hasAttendanceTaker: schoolDoc.hasAttendanceTaker === undefined ? false : doc.hasAttendanceTaker,
       createdAt: new Date(schoolDoc.createdAt).toISOString(),
       updatedAt: new Date(schoolDoc.updatedAt).toISOString(),
     };
