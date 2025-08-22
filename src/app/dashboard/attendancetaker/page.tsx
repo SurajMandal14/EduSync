@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -31,7 +30,7 @@ export default function AttendanceTakerPage() {
   const [studentAttendance, setStudentAttendance] = useState<AttendanceEntry[]>([]);
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // A general loading state
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [selectedClass, setSelectedClass] = useState<ClassOption | null>(null);
@@ -54,10 +53,10 @@ export default function AttendanceTakerPage() {
   }, [toast]); 
 
   const fetchClassOptions = useCallback(async (schoolId: string) => {
-    setIsLoading(true);
+    setIsLoading(true); // Start loading
     const options = await getClassesForSchoolAsOptions(schoolId);
     setClassOptions(options);
-    setIsLoading(false);
+    setIsLoading(false); // Stop loading
   }, []);
 
   useEffect(() => {
@@ -68,7 +67,7 @@ export default function AttendanceTakerPage() {
 
   const fetchStudentsForClass = useCallback(async (classId: string) => {
     if (!authUser?.schoolId) return;
-    setIsLoading(true);
+    setIsLoading(true); // Use the general loading state
     const result = await getStudentsByClass(authUser.schoolId.toString(), classId);
     if (result.success && result.users) {
       const studentEntries: AttendanceEntry[] = result.users.map(student => ({
@@ -81,7 +80,7 @@ export default function AttendanceTakerPage() {
       toast({ variant: "destructive", title: "Error", description: "Could not load students for the selected class." });
       setStudentAttendance([]);
     }
-    setIsLoading(false);
+    setIsLoading(false); // Stop loading
   }, [authUser?.schoolId, toast]);
 
   const handleClassChange = (classId: string) => {
