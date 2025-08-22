@@ -34,7 +34,8 @@ import { createSchoolUser, getSchoolUsers, updateSchoolUser, deleteSchoolUser } 
 import { 
     createTeacherFormSchema, type CreateTeacherFormData,
     updateSchoolUserFormSchema, type UpdateSchoolUserFormData,
-    type CreateSchoolUserServerActionFormData
+    type CreateSchoolUserServerActionFormData,
+    type UserRole,
 } from '@/types/user';
 import { getSchoolById } from "@/app/actions/schools";
 import { getSchoolClasses } from "@/app/actions/classes"; 
@@ -48,6 +49,9 @@ import type { AuthUser } from "@/types/attendance";
 type SchoolTeacher = Partial<AppUser>; 
 
 const NONE_CLASS_VALUE = "__NONE_CLASS_ID__";
+
+// Extend the form data type to include the optional role
+type StaffFormData = CreateTeacherFormData & { role?: UserRole };
 
 export default function AdminTeacherManagementPage() {
   const { toast } = useToast();
@@ -66,9 +70,9 @@ export default function AdminTeacherManagementPage() {
   const [teacherToDelete, setTeacherToDelete] = useState<SchoolTeacher | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const teacherForm = useForm<CreateTeacherFormData>({
-    resolver: zodResolver(createTeacherFormSchema),
-    defaultValues: { name: "", email: "", password: "" },
+  const staffForm = useForm<StaffFormData>({
+    resolver: zodResolver(createTeacherFormSchema), // Still uses the same validation base
+    defaultValues: { name: "", email: "", password: "", role: 'teacher' },
   });
 
   const editForm = useForm<UpdateSchoolUserFormData>({
@@ -117,9 +121,10 @@ export default function AdminTeacherManagementPage() {
       }
       
       if (usersResult.success && usersResult.users) {
-        setAllSchoolTeachers(usersResult.users.filter(u => u.role === 'teacher'));
+        // Filter for teachers and attendance takers
+        setAllSchoolTeachers(usersResult.users.filter(u => u.role === 'teacher' || u.role === 'attendancetaker'));
       } else {
-        toast({ variant: "destructive", title: "Error", description: usersResult.message || "Failed to load teachers." });
+        toast({ variant: "destructive", title: "Error", description: usersResult.message || "Failed to load staff." });
         setAllSchoolTeachers([]);
       }
 
@@ -148,25 +153,25 @@ export default function AdminTeacherManagementPage() {
         name: editingTeacher.name || "",
         email: editingTeacher.email || "",
         password: "", 
-        role: 'teacher',
+        role: editingTeacher.role as UserRole, // Set role for edit form
         classId: editingTeacher.classId || "", 
       });
       setShowAddForm(false);
     }
   }, [editingTeacher, editForm]);
 
-  async function handleTeacherSubmit(values: CreateTeacherFormData) {
+  async function handleStaffSubmit(values: StaffFormData) {
     if (!authUser?.schoolId) return;
     setIsSubmitting(true);
     const payload: CreateSchoolUserServerActionFormData = { 
         ...values, 
-        role: 'teacher', 
+        role: values.role || 'teacher', // Default to teacher if not provided
     };
     const result = await createSchoolUser(payload, authUser.schoolId.toString());
     setIsSubmitting(false);
     if (result.success) {
-      toast({ title: "Teacher Created", description: result.message });
-      teacherForm.reset();
+      toast({ title: "Staff Created", description: result.message });
+      staffForm.reset();
       setShowAddForm(false);
       fetchInitialData(); 
     } else {
@@ -180,7 +185,7 @@ export default function AdminTeacherManagementPage() {
     const result = await updateSchoolUser(editingTeacher._id.toString(), authUser.schoolId.toString(), values);
     setIsSubmitting(false);
     if (result.success) {
-      toast({ title: "Teacher Updated", description: result.message });
+      toast({ title: "Staff Updated", description: result.message });
       setEditingTeacher(null);
       fetchInitialData(); 
     } else {
@@ -198,7 +203,7 @@ export default function AdminTeacherManagementPage() {
     const result = await deleteSchoolUser(teacherToDelete._id.toString(), authUser.schoolId.toString());
     setIsDeleting(false);
     if (result.success) {
-      toast({ title: "Teacher Deleted", description: result.message });
+      toast({ title: "Staff Member Deleted", description: result.message });
       fetchInitialData(); 
     } else {
       toast({ variant: "destructive", title: "Deletion Failed", description: result.error || result.message });
@@ -223,7 +228,7 @@ export default function AdminTeacherManagementPage() {
 
   const cancelAddForm = () => {
     setShowAddForm(false);
-    teacherForm.reset();
+    staffForm.reset();
   }
 
 
@@ -241,17 +246,17 @@ export default function AdminTeacherManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
-            <Briefcase className="mr-2 h-6 w-6" /> Teacher Management
+            <Briefcase className="mr-2 h-6 w-6" /> Staff Management
           </CardTitle>
           <CardDescription>
-            Manage teacher accounts for {schoolDetails?.schoolName || "your school"}.
+            Manage teacher and attendance taker accounts for {schoolDetails?.schoolName || "your school"}.
           </CardDescription>
         </CardHeader>
       </Card>
       
       {!editingTeacher && !showAddForm && (
         <Button onClick={openAddForm}>
-          <UserPlus className="mr-2 h-4 w-4" /> Add New Teacher
+          <UserPlus className="mr-2 h-4 w-4" /> Add New Staff Member
         </Button>
       )}
 
@@ -259,7 +264,7 @@ export default function AdminTeacherManagementPage() {
       {editingTeacher && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center"><Edit3 className="mr-2 h-5 w-5"/>Edit Teacher: {editingTeacher.name}</CardTitle>
+            <CardTitle className="flex items-center"><Edit3 className="mr-2 h-5 w-5"/>Edit Staff: {editingTeacher.name}</CardTitle>
           </CardHeader>
           <CardContent>
             <Form {...editForm}>
@@ -279,38 +284,17 @@ export default function AdminTeacherManagementPage() {
                         <FormMessage />
                       </FormItem>
                   )}/>
-                  <FormField 
-                      control={editForm.control} 
-                      name="classId" 
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Assign as Class Teacher (Optional)</FormLabel>
-                              <Select 
-                                  onValueChange={(value) => field.onChange(value === NONE_CLASS_VALUE ? "" : value)}
-                                  value={field.value || ""} 
-                                  disabled={isSubmitting || managedClasses.length === 0}
-                              >
-                                  <FormControl><SelectTrigger>
-                                      <SelectValue placeholder={managedClasses.length > 0 ? "Select class" : "No classes available"} />
-                                  </SelectTrigger></FormControl>
-                                  <SelectContent>
-                                      <SelectItem value={NONE_CLASS_VALUE}>-- None --</SelectItem>
-                                      {managedClasses.map((cls) => (
-                                          <SelectItem key={cls._id} value={cls._id.toString()}>{cls.name} {cls.section ? `- ${cls.section}` : ''}</SelectItem>
-                                      ))}
-                                  </SelectContent>
-                              </Select>
-                              <FormDescription className="text-xs">Assigning here makes them the primary class teacher for attendance.</FormDescription>
-                              {managedClasses.length === 0 && <FormDescription className="text-xs">No classes created yet. Please create classes in Class Management first.</FormDescription>}
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                  />
+                  {/* Role cannot be changed during edit to avoid complexity */}
+                   <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <FormControl><Input value={editingTeacher.role} disabled /></FormControl>
+                        <FormDescription className="text-xs">Role cannot be changed after creation.</FormDescription>
+                    </FormItem>
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" disabled={isSubmitting || isLoadingData}>
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
-                    Update Teacher
+                    Update Staff Member
                   </Button>
                   <Button type="button" variant="outline" onClick={cancelEdit} disabled={isSubmitting}><XCircle className="mr-2 h-4 w-4" />Cancel</Button>
                 </div>
@@ -322,17 +306,39 @@ export default function AdminTeacherManagementPage() {
       
       {showAddForm && !editingTeacher && (
         <Card>
-            <CardHeader><CardTitle className="flex items-center"><UserPlus className="mr-2 h-5 w-5"/>Add New Teacher</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center"><UserPlus className="mr-2 h-5 w-5"/>Add New Staff Member</CardTitle></CardHeader>
             <CardContent>
-                <Form {...teacherForm}>
-                <form onSubmit={teacherForm.handleSubmit(handleTeacherSubmit)} className="space-y-6">
+                <Form {...staffForm}>
+                <form onSubmit={staffForm.handleSubmit(handleStaffSubmit)} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <FormField control={teacherForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Teacher" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={teacherForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="teacher@example.com" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={teacherForm.control} name="password" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={staffForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Teacher" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={staffForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="staff@example.com" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={staffForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                        
+                        {schoolDetails?.hasAttendanceTaker && (
+                           <FormField
+                            control={staffForm.control}
+                            name="role"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Role</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                                    <FormControl><SelectTrigger>
+                                        <SelectValue placeholder="Select a role" />
+                                    </SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="teacher">Teacher</SelectItem>
+                                        <SelectItem value="attendancetaker">Attendance Taker</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                        )}
                     </div>
                     <div className="flex gap-2">
-                        <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || isLoadingData}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}Add Teacher</Button>
+                        <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || isLoadingData}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}Add Staff Member</Button>
                         <Button type="button" variant="outline" onClick={cancelAddForm} disabled={isSubmitting}>
                             <XCircle className="mr-2 h-4 w-4" /> Cancel
                         </Button>
@@ -346,30 +352,34 @@ export default function AdminTeacherManagementPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <CardTitle>Teacher List ({schoolDetails?.schoolName || "Your School"})</CardTitle>
+            <CardTitle>Staff List ({schoolDetails?.schoolName || "Your School"})</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Input placeholder="Search teachers..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolTeachers.length}/>
+              <Input placeholder="Search staff..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolTeachers.length}/>
               <Button variant="outline" size="icon" disabled={isLoadingData || !allSchoolTeachers.length}><Search className="h-4 w-4" /></Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoadingData ? (
-             <div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading teachers...</p></div>
+             <div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading staff members...</p></div>
           ) : filteredTeachers.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Class Teacher For</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {filteredTeachers.map((teacher) => (
                 <TableRow key={teacher._id?.toString()}>
                   <TableCell>{teacher.name}</TableCell>
                   <TableCell>{teacher.email}</TableCell>
-                  <TableCell>{getClassNameFromId(teacher.classId)}</TableCell>
+                  <TableCell className="capitalize">{teacher.role}</TableCell>
                   <TableCell>{teacher.createdAt ? format(new Date(teacher.createdAt as string), "PP") : 'N/A'}</TableCell>
                   <TableCell className="space-x-1">
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(teacher)} disabled={isSubmitting || isDeleting}><Edit3 className="h-4 w-4" /></Button>
-                    <AlertDialog open={teacherToDelete?._id === teacher._id} onOpenChange={(open) => !open && setTeacherToDelete(null)}>
-                      <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteClick(teacher)} disabled={isSubmitting || isDeleting}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteClick(teacher)} disabled={isSubmitting || isDeleting}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
                       {teacherToDelete && teacherToDelete._id === teacher._id && (
                         <AlertDialogContent>
                           <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -390,7 +400,7 @@ export default function AdminTeacherManagementPage() {
             </TableBody>
           </Table>
           ) : (
-             <p className="text-center text-muted-foreground py-4">{searchTerm ? "No teachers match search." : "No teachers found for this school."}</p>
+             <p className="text-center text-muted-foreground py-4">{searchTerm ? "No staff match search." : "No staff found for this school."}</p>
           )}
         </CardContent>
       </Card>
