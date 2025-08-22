@@ -11,7 +11,7 @@ export interface User {
   name: string;
   role: UserRole;
   schoolId?: ObjectId | string;
-  classId?: string; // For students: class _id they belong to. For teachers: primary class _id they can mark attendance for.
+  classId?: string; // For students: class _id they belong to.
   classIds?: string[]; // For attendance taker role to be assigned to multiple classes
   admissionId?: string; 
   avatarUrl?: string;
@@ -41,7 +41,7 @@ export interface User {
 }
 
 // Centralized AuthUser type
-export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'registrationNo'> & { requiresPasswordChange?: boolean, classIds?: string[] };
+export type AuthUser = Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'avatarUrl' | 'registrationNo' | 'classIds'> & { requiresPasswordChange?: boolean };
 
 
 // Zod schema for Super Admin creating/updating School Admins
@@ -115,7 +115,7 @@ export const createSchoolUserFormSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   role: z.enum(['teacher', 'student', 'attendancetaker'], { required_error: "Role is required." }),
-  classId: z.string().optional(), // This will be class _id
+  classId: z.string().optional(), // This will be class _id for student
   classIds: z.array(z.string()).optional(), // For attendance taker
   admissionId: z.string().optional(),
   busRouteLocation: z.string().optional(),
@@ -151,7 +151,7 @@ export const updateSchoolUserFormSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "New password must be at least 6 characters." }).optional().or(z.literal('')), // Optional for update
   role: z.enum(['teacher', 'student', 'attendancetaker'], { required_error: "Role is required." }), 
-  classId: z.string().optional(), // This will be class _id
+  classId: z.string().optional(), // This will be class _id for student
   classIds: z.array(z.string()).optional(), // For attendance taker
   admissionId: z.string().optional(), 
   enableBusTransport: z.boolean().default(false).optional(),
@@ -188,7 +188,7 @@ export interface CreateSchoolUserServerActionFormData {
   email: string;
   password: string; // Required for create by server action
   role: 'teacher' | 'student' | 'attendancetaker';
-  classId?: string; // This will be class _id for student/teacher
+  classId?: string; // This will be class _id for student
   classIds?: string[]; // For attendance taker
   admissionId?: string;
   busRouteLocation?: string;

@@ -235,7 +235,7 @@ export default function AdminAttendanceTakerManagementPage() {
                   render={() => (
                     <FormItem>
                       <div className="mb-4">
-                        <FormLabel className="text-base flex items-center"><BookCopy className="mr-2 h-5 w-5"/>Assign Classes</FormLabel>
+                        <FormLabel className="text-base flex items-center"><BookCopy className="mr-2 h-5 w-5"/>Assign Classes*</FormLabel>
                         <FormDescription>Select all classes this user can mark attendance for.</FormDescription>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -259,6 +259,7 @@ export default function AdminAttendanceTakerManagementPage() {
                                             )
                                           )
                                     }}
+                                    disabled={isSubmitting}
                                   />
                                 </FormControl>
                                 <FormLabel className="font-normal">{item.label}</FormLabel>
