@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, Briefcase, XCircle } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, Briefcase, XCircle, BookCopy } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -38,7 +38,7 @@ import {
     type UserRole,
 } from '@/types/user';
 import { getSchoolById } from "@/app/actions/schools";
-import { getSchoolClasses } from "@/app/actions/classes"; 
+import { getSchoolClasses, getClassesForSchoolAsOptions } from "@/app/actions/classes"; 
 import type { User as AppUser } from "@/types/user";
 import type { School } from "@/types/school";
 import type { SchoolClass } from "@/types/classes"; 
@@ -50,8 +50,13 @@ type SchoolTeacher = Partial<AppUser>;
 
 const NONE_CLASS_VALUE = "__NONE_CLASS_ID__";
 
-// Extend the form data type to include the optional role
-type StaffFormData = CreateTeacherFormData & { role?: UserRole };
+interface ClassOption {
+    value: string;
+    label: string;
+}
+
+// Extend the form data type to include the optional role and classId
+type StaffFormData = CreateTeacherFormData & { role?: UserRole, classId?: string };
 
 export default function AdminTeacherManagementPage() {
   const { toast } = useToast();
@@ -59,6 +64,7 @@ export default function AdminTeacherManagementPage() {
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null); 
   const [managedClasses, setManagedClasses] = useState<SchoolClass[]>([]); 
   const [allSchoolTeachers, setAllSchoolTeachers] = useState<SchoolTeacher[]>([]);
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,7 +78,7 @@ export default function AdminTeacherManagementPage() {
 
   const staffForm = useForm<StaffFormData>({
     resolver: zodResolver(createTeacherFormSchema), // Still uses the same validation base
-    defaultValues: { name: "", email: "", password: "", role: 'teacher' },
+    defaultValues: { name: "", email: "", password: "", role: 'teacher', classId: "" },
   });
 
   const editForm = useForm<UpdateSchoolUserFormData>({
@@ -84,6 +90,9 @@ export default function AdminTeacherManagementPage() {
         symbolNo: undefined, registrationNo: undefined, district: undefined, gender: undefined, quota: undefined,
     },
   });
+
+  const staffFormRole = staffForm.watch('role');
+  const editFormRole = editForm.watch('role');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -107,10 +116,11 @@ export default function AdminTeacherManagementPage() {
     }
     setIsLoadingData(true);
     try {
-      const [schoolResult, usersResult, classesResult] = await Promise.all([
+      const [schoolResult, usersResult, classesResult, classOptionsResult] = await Promise.all([
         getSchoolById(authUser.schoolId.toString()),
         getSchoolUsers(authUser.schoolId.toString()),
-        getSchoolClasses(authUser.schoolId.toString()) 
+        getSchoolClasses(authUser.schoolId.toString()),
+        getClassesForSchoolAsOptions(authUser.schoolId.toString())
       ]);
 
       if (schoolResult.success && schoolResult.school) {
@@ -134,6 +144,8 @@ export default function AdminTeacherManagementPage() {
         toast({ variant: "warning", title: "Class List Error", description: classesResult.message || "Failed to load managed class list." });
         setManagedClasses([]);
       }
+      
+      setClassOptions(classOptionsResult);
 
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Unexpected error fetching data." });
@@ -166,6 +178,7 @@ export default function AdminTeacherManagementPage() {
     const payload: CreateSchoolUserServerActionFormData = { 
         ...values, 
         role: values.role || 'teacher', // Default to teacher if not provided
+        classId: values.classId === NONE_CLASS_VALUE ? undefined : values.classId,
     };
     const result = await createSchoolUser(payload, authUser.schoolId.toString());
     setIsSubmitting(false);
@@ -217,12 +230,13 @@ export default function AdminTeacherManagementPage() {
 
   const getClassNameFromId = (classId: string | undefined): string => {
     if (!classId) return 'N/A';
-    const foundClass = managedClasses.find(cls => cls._id === classId);
-    return foundClass?.name ? `${foundClass.name}${foundClass.section ? ` - ${foundClass.section}`: ''}` : 'N/A (Invalid ID)';
+    const foundClass = classOptions.find(cls => cls.value === classId);
+    return foundClass?.label || 'N/A (Invalid ID)';
   };
   
   const openAddForm = () => {
     setEditingTeacher(null);
+    staffForm.reset({ name: "", email: "", password: "", role: 'teacher', classId: "" });
     setShowAddForm(true);
   }
 
@@ -284,12 +298,27 @@ export default function AdminTeacherManagementPage() {
                         <FormMessage />
                       </FormItem>
                   )}/>
-                  {/* Role cannot be changed during edit to avoid complexity */}
                    <FormItem>
                         <FormLabel>Role</FormLabel>
                         <FormControl><Input value={editingTeacher.role} disabled /></FormControl>
                         <FormDescription className="text-xs">Role cannot be changed after creation.</FormDescription>
                     </FormItem>
+                  {editFormRole === 'attendancetaker' && (
+                       <FormField control={editForm.control} name="classId" render={({ field }) => ( 
+                            <FormItem>
+                                <FormLabel className="flex items-center"><BookCopy className="mr-2 h-4 w-4 text-muted-foreground"/>Assign Primary Class</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || ""} disabled={isSubmitting || classOptions.length === 0}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        <SelectItem value={NONE_CLASS_VALUE}>-- None --</SelectItem>
+                                        {classOptions.map((opt)=>(<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
+                                    </SelectContent>
+                                </Select>
+                                <FormDescription className="text-xs">This user will mark attendance for this class.</FormDescription>
+                                <FormMessage/>
+                            </FormItem>
+                        )}/>
+                    )}
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" disabled={isSubmitting || isLoadingData}>
@@ -322,7 +351,7 @@ export default function AdminTeacherManagementPage() {
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel>Role</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
                                     <FormControl><SelectTrigger>
                                         <SelectValue placeholder="Select a role" />
                                     </SelectTrigger></FormControl>
@@ -336,6 +365,23 @@ export default function AdminTeacherManagementPage() {
                             )}
                             />
                         )}
+                        {staffFormRole === 'attendancetaker' && (
+                           <FormField control={staffForm.control} name="classId" render={({ field }) => ( 
+                                <FormItem>
+                                    <FormLabel className="flex items-center"><BookCopy className="mr-2 h-4 w-4 text-muted-foreground"/>Assign Primary Class</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || classOptions.length === 0}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            <SelectItem value={NONE_CLASS_VALUE}>-- None --</SelectItem>
+                                            {classOptions.map((opt)=>(<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription className="text-xs">This user will mark attendance for this class.</FormDescription>
+                                    <FormMessage/>
+                                </FormItem>
+                            )}/>
+                        )}
+
                     </div>
                     <div className="flex gap-2">
                         <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || isLoadingData}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}Add Staff Member</Button>
@@ -364,13 +410,14 @@ export default function AdminTeacherManagementPage() {
              <div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading staff members...</p></div>
           ) : filteredTeachers.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Assigned Class</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {filteredTeachers.map((teacher) => (
                 <TableRow key={teacher._id?.toString()}>
                   <TableCell>{teacher.name}</TableCell>
                   <TableCell>{teacher.email}</TableCell>
                   <TableCell className="capitalize">{teacher.role}</TableCell>
+                  <TableCell>{getClassNameFromId(teacher.classId)}</TableCell>
                   <TableCell>{teacher.createdAt ? format(new Date(teacher.createdAt as string), "PP") : 'N/A'}</TableCell>
                   <TableCell className="space-x-1">
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(teacher)} disabled={isSubmitting || isDeleting}><Edit3 className="h-4 w-4" /></Button>

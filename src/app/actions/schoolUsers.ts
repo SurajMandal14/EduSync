@@ -251,7 +251,7 @@ export async function getSchoolUsers(schoolId: string): Promise<GetSchoolUsersRe
 
     const usersFromDb = await db.collection('users').find({
       schoolId: new ObjectId(schoolId) as any,
-      role: { $in: ['teacher', 'student'] }
+      role: { $in: ['teacher', 'student', 'attendancetaker'] }
     }).sort({ createdAt: -1 }).toArray();
 
     const users = usersFromDb.map(userDoc => {
@@ -389,7 +389,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
             unsetOperation.busRouteLocation = "";
             unsetOperation.busClassCategory = "";
         }
-    } else { // It's a teacher, so clear all student-specific fields
+    } else { // It's a teacher or attendance taker, so clear all student-specific fields
         unsetOperation.admissionId = "";
         unsetOperation.busRouteLocation = "";
         unsetOperation.busClassCategory = "";
@@ -490,7 +490,7 @@ export async function deleteSchoolUser(userId: string, schoolId: string): Promis
     const result = await usersCollection.deleteOne({
       _id: new ObjectId(userId) as any,
       schoolId: new ObjectId(schoolId) as any,
-      role: { $in: ['teacher', 'student'] }
+      role: { $in: ['teacher', 'student', 'attendancetaker'] }
     });
 
     if (result.deletedCount === 0) {
