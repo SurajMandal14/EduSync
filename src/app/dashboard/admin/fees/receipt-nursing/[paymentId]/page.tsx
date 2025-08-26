@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
@@ -11,7 +10,7 @@ import { getFeeConcessionsForSchool } from '@/app/actions/concessions';
 import { getClassDetailsById } from '@/app/actions/classes';
 import type { FeePayment } from '@/types/fees';
 import type { School, ClassTuitionFeeConfig } from '@/types/school';
-import type { User, AuthUser } from '@/types/user';
+import type { User } from '@/types/user';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
