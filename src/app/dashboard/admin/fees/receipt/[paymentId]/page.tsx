@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
@@ -104,13 +103,13 @@ export default function FeeReceiptPage() {
 
   return (
     <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">
-      <style jsx global>{\`
+      <style jsx global>{`
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
           .print-receipt-container { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
         }
-      \`}</style>
+      `}</style>
       <Card className="w-full max-w-2xl shadow-xl print-receipt-container print:shadow-none print:border-none">
         <CardHeader className="text-center space-y-2">
           {school.schoolLogoUrl && (
@@ -163,7 +162,7 @@ export default function FeeReceiptPage() {
           <Separator />
 
           <div className="text-center text-xs text-muted-foreground pt-4">
-            This is a computer-generated receipt and does not require a signature.
+            <p>This is a computer-generated receipt and does not require a signature.</p>
             <p>Thank you for your payment!</p>
             <p>{school.schoolName} - Contact: (School Contact Info Placeholder)</p>
           </div>
@@ -180,4 +179,3 @@ export default function FeeReceiptPage() {
     </div>
   );
 }
-
