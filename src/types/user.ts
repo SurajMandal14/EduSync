@@ -61,6 +61,7 @@ export const createStudentFormSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   admissionId: z.string().optional(),
   classId: z.string().min(1, { message: "Class assignment is required." }), // This will be the class _id
+  avatarUrl: z.string().optional(),
   enableBusTransport: z.boolean().default(false).optional(),
   busRouteLocation: z.string().optional(),
   busClassCategory: z.string().optional(),
@@ -120,6 +121,7 @@ export const createSchoolUserFormSchema = z.object({
   admissionId: z.string().optional(),
   busRouteLocation: z.string().optional(),
   busClassCategory: z.string().optional(),
+  avatarUrl: z.string().optional(),
   // New fields for student
   fatherName: z.string().optional(),
   motherName: z.string().optional(),
@@ -154,6 +156,7 @@ export const updateSchoolUserFormSchema = z.object({
   classId: z.string().optional(), // This will be class _id for student
   classIds: z.array(z.string()).optional(), // For attendance taker
   admissionId: z.string().optional(), 
+  avatarUrl: z.string().optional(),
   enableBusTransport: z.boolean().default(false).optional(),
   busRouteLocation: z.string().optional(),
   busClassCategory: z.string().optional(),
@@ -193,6 +196,7 @@ export interface CreateSchoolUserServerActionFormData {
   admissionId?: string;
   busRouteLocation?: string;
   busClassCategory?: string;
+  avatarUrl?: string;
   // New fields for student
   fatherName?: string;
   motherName?: string;
@@ -212,6 +216,6 @@ export interface CreateSchoolUserServerActionFormData {
 export const updateProfileFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   phone: z.string().optional(),
-  avatarUrl: z.string().url("Invalid URL format for avatar.").optional().or(z.literal('')),
+  avatarUrl: z.string().optional(), // Can be a URL or a base64 data URI
 });
 export type UpdateProfileFormData = z.infer<typeof updateProfileFormSchema>;

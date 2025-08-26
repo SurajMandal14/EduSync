@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UserCircle, Save, Loader2, Image as ImageIcon } from "lucide-react";
+import { UserCircle, Save, Loader2, Image as ImageIcon, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { AuthUser, UpdateProfileFormData } from "@/types/user"; 
 import { updateProfileFormSchema } from "@/types/user";
 import { updateUserProfile } from "@/app/actions/profile";
@@ -21,6 +21,8 @@ export default function ProfilePage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true); // For initial load
   const [isSubmitting, setIsSubmitting] = useState(false); // For form submission
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const form = useForm<UpdateProfileFormData>({
     resolver: zodResolver(updateProfileFormSchema),
@@ -37,15 +39,15 @@ export default function ProfilePage() {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
       try {
-        const parsedUser: AuthUser = JSON.parse(storedUser);
+        const parsedUser: AuthUser & {phone?: string} = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role) {
           setAuthUser(parsedUser);
           form.reset({
             name: parsedUser.name || "",
-            // email: parsedUser.email || "", // Email is not part of UpdateProfileFormData
-            phone: (parsedUser as any).phone || "", 
+            phone: parsedUser.phone || "", 
             avatarUrl: parsedUser.avatarUrl || "",
           });
+          setPreviewUrl(parsedUser.avatarUrl || null);
         } else {
           setAuthUser(null);
         }
@@ -59,6 +61,20 @@ export default function ProfilePage() {
     }
     setIsLoading(false);
   }, [form, toast]);
+  
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        form.setValue("avatarUrl", dataUrl);
+        setPreviewUrl(dataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
 
   async function onSubmit(values: UpdateProfileFormData) {
     if (!authUser || !authUser._id) {
@@ -81,15 +97,16 @@ export default function ProfilePage() {
             schoolId: result.user.schoolId,
             classId: result.user.classId,
             avatarUrl: result.user.avatarUrl,
-            // phone: result.user.phone, // AuthUser type doesn't include phone currently
+            registrationNo: result.user.registrationNo,
+            classIds: result.user.classIds,
         };
         // Add phone to the object if it exists (for full user object in localStorage if needed)
-        // This is a bit of a hack as AuthUser type doesn't have phone, but localStorage might store more.
         const fullUserForStorage = { ...updatedAuthUser, phone: result.user.phone };
 
 
         setAuthUser(updatedAuthUser); // Update local state for UI reactivity
         localStorage.setItem('loggedInUser', JSON.stringify(fullUserForStorage)); // Update localStorage
+        setPreviewUrl(result.user.avatarUrl || null);
 
         // Update form with potentially sanitized/defaulted values from server (e.g. avatarUrl cleared)
         form.reset({
@@ -103,7 +120,7 @@ export default function ProfilePage() {
     }
   }
 
-  const currentAvatarUrl = form.watch("avatarUrl") || authUser?.avatarUrl;
+  const currentAvatarUrl = previewUrl || authUser?.avatarUrl;
 
   if (isLoading) {
     return (
@@ -198,11 +215,29 @@ export default function ProfilePage() {
                 name="avatarUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center"><ImageIcon className="mr-2 h-4 w-4 text-muted-foreground"/>Avatar URL (Optional)</FormLabel>
-                    <FormControl>
-                      <Input type="url" placeholder="https://example.com/avatar.png" {...field} disabled={isSubmitting}/>
-                    </FormControl>
-                     <FormDescription>Enter a publicly accessible URL for your avatar image. Leave blank to remove.</FormDescription>
+                    <FormLabel className="flex items-center"><ImageIcon className="mr-2 h-4 w-4 text-muted-foreground"/>Avatar</FormLabel>
+                    <div className="flex items-center gap-4">
+                        <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isSubmitting}>
+                           <Upload className="mr-2 h-4 w-4"/> Change Photo
+                        </Button>
+                        <FormControl>
+                           <Input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="sr-only" 
+                                accept="image/png, image/jpeg, image/gif"
+                                onChange={handleFileChange}
+                                disabled={isSubmitting}
+                            />
+                        </FormControl>
+                        {previewUrl && (
+                             <Button type="button" variant="ghost" size="sm" onClick={() => {
+                                setPreviewUrl(null);
+                                form.setValue("avatarUrl", "");
+                             }}>Remove</Button>
+                        )}
+                    </div>
+                     <FormDescription>Upload a new photo. Max file size 2MB.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

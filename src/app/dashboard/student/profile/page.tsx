@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UserCircle, Save, Loader2, School as SchoolIcon, BookUser, Image as ImageIcon } from "lucide-react";
+import { UserCircle, Save, Loader2, School as SchoolIcon, BookUser, Image as ImageIcon, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { AuthUser, UpdateProfileFormData } from "@/types/user";
 import { updateProfileFormSchema } from "@/types/user";
 import type { School } from "@/types/school";
@@ -23,6 +23,8 @@ export default function StudentProfilePage() {
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const form = useForm<UpdateProfileFormData>({
     resolver: zodResolver(updateProfileFormSchema),
@@ -55,6 +57,7 @@ export default function StudentProfilePage() {
             phone: parsedUser.phone || "", 
             avatarUrl: parsedUser.avatarUrl || "",
           });
+           setPreviewUrl(parsedUser.avatarUrl || null);
           if (parsedUser.schoolId) {
             fetchSchoolDetails(parsedUser.schoolId.toString());
           }
@@ -72,6 +75,23 @@ export default function StudentProfilePage() {
     }
     setIsLoading(false);
   }, [form, toast, fetchSchoolDetails]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({ variant: "destructive", title: "File Too Large", description: "Please upload an image smaller than 2MB." });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        form.setValue("avatarUrl", dataUrl, { shouldValidate: true, shouldDirty: true });
+        setPreviewUrl(dataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   async function onSubmit(values: UpdateProfileFormData) {
     if (!authUser || !authUser._id) {
@@ -93,11 +113,14 @@ export default function StudentProfilePage() {
             schoolId: result.user.schoolId,
             classId: result.user.classId,
             avatarUrl: result.user.avatarUrl,
+            registrationNo: result.user.registrationNo,
+            classIds: result.user.classIds,
         };
         const fullUserForStorage = { ...updatedAuthUser, phone: result.user.phone };
 
         setAuthUser(updatedAuthUser);
         localStorage.setItem('loggedInUser', JSON.stringify(fullUserForStorage));
+        setPreviewUrl(result.user.avatarUrl || null);
 
         form.reset({
             name: result.user.name || "",
@@ -109,7 +132,7 @@ export default function StudentProfilePage() {
     }
   }
 
-  const currentAvatarUrl = form.watch("avatarUrl") || authUser?.avatarUrl;
+  const currentAvatarUrl = previewUrl || authUser?.avatarUrl;
 
   if (isLoading) {
     return (
@@ -206,20 +229,33 @@ export default function StudentProfilePage() {
                   </FormItem>
                 )}
               />
-               <FormField
-                control={form.control}
-                name="avatarUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center"><ImageIcon className="mr-2 h-4 w-4 text-muted-foreground"/>Avatar URL (Optional)</FormLabel>
+               <FormItem>
+                 <FormLabel className="flex items-center"><ImageIcon className="mr-2 h-4 w-4 text-muted-foreground"/>Avatar</FormLabel>
+                 <div className="flex items-center gap-4">
+                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isSubmitting}>
+                       <Upload className="mr-2 h-4 w-4"/> Change Photo
+                    </Button>
                     <FormControl>
-                      <Input type="url" placeholder="https://example.com/avatar.png" {...field} disabled={isSubmitting}/>
+                       <Input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="sr-only" 
+                            accept="image/png, image/jpeg, image/gif"
+                            onChange={handleFileChange}
+                            disabled={isSubmitting}
+                        />
                     </FormControl>
-                     <FormDescription>Enter a publicly accessible URL for your avatar image. Leave blank to remove.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    {previewUrl && (
+                         <Button type="button" variant="ghost" size="sm" onClick={() => {
+                            setPreviewUrl(null);
+                            form.setValue("avatarUrl", "");
+                         }}>Remove</Button>
+                    )}
+                 </div>
+                 <FormDescription>Upload a new photo. Max file size 2MB.</FormDescription>
+                 <FormMessage>{form.formState.errors.avatarUrl?.message}</FormMessage>
+               </FormItem>
+
               <div className="flex justify-end">
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

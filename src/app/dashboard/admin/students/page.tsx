@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UploadCloud } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UploadCloud, Upload } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -42,10 +42,11 @@ import { getSchoolById } from "@/app/actions/schools";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import type { User as AppUser } from "@/types/user";
 import type { School, TermFee } from "@/types/school";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
 import Link from "next/link";
+import { Label } from "@/components/ui/label";
 
 type SchoolStudent = Partial<AppUser>; 
 
@@ -82,6 +83,12 @@ export default function AdminStudentManagementPage() {
   const [noBusFeeStructureFound, setNoBusFeeStructureFound] = useState(false);
   const [selectedBusLocations, setSelectedBusLocations] = useState<string[]>([]);
   const [availableBusClassCategories, setAvailableBusClassCategories] = useState<string[]>([]);
+  
+  const addFileRef = useRef<HTMLInputElement>(null);
+  const editFileRef = useRef<HTMLInputElement>(null);
+  const [addPreview, setAddPreview] = useState<string | null>(null);
+  const [editPreview, setEditPreview] = useState<string | null>(null);
+
 
   const form = useForm<CreateStudentFormData>({
     resolver: zodResolver(createStudentFormSchema),
@@ -89,7 +96,7 @@ export default function AdminStudentManagementPage() {
         name: "", email: "", password: "", admissionId: "", classId: "", 
         enableBusTransport: false, busRouteLocation: "", busClassCategory: "",
         fatherName: "", motherName: "", dob: "", section: "", rollNo: "",
-        symbolNo: "", registrationNo: "", district: "", gender: "", quota: ""
+        symbolNo: "", registrationNo: "", district: "", gender: "", quota: "", avatarUrl: ""
     },
   });
 
@@ -99,7 +106,7 @@ export default function AdminStudentManagementPage() {
         name: "", email: "", password: "", role: 'student', classId: "", admissionId: "", 
         enableBusTransport: false, busRouteLocation: "", busClassCategory: "",
         fatherName: "", motherName: "", dob: "", section: "", rollNo: "", aadharNo: "",
-        symbolNo: "", registrationNo: "", district: "", gender: "", quota: ""
+        symbolNo: "", registrationNo: "", district: "", gender: "", quota: "", avatarUrl: ""
     },
   });
   const editEnableBusTransport = editForm.watch("enableBusTransport");
@@ -239,6 +246,28 @@ export default function AdminStudentManagementPage() {
     targetForm.setValue('section', selectedClass?.section || '');
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, formType: 'add' | 'edit') => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({ variant: "destructive", title: "File Too Large", description: "Please upload an image smaller than 2MB." });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        if(formType === 'add') {
+            form.setValue('avatarUrl', dataUrl, { shouldValidate: true, shouldDirty: true });
+            setAddPreview(dataUrl);
+        } else {
+            editForm.setValue('avatarUrl', dataUrl, { shouldValidate: true, shouldDirty: true });
+            setEditPreview(dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
 
   useEffect(() => {
     if (editingStudent) {
@@ -263,7 +292,9 @@ export default function AdminStudentManagementPage() {
         district: editingStudent.district || "",
         gender: editingStudent.gender || "",
         quota: editingStudent.quota || "",
+        avatarUrl: editingStudent.avatarUrl || "",
       });
+      setEditPreview(editingStudent.avatarUrl || null);
       setShowAddForm(false);
     }
   }, [editingStudent, editForm]);
@@ -287,6 +318,7 @@ export default function AdminStudentManagementPage() {
       setNoTuitionFeeStructureFound(false);
       setCalculatedBusFee(null);
       setNoBusFeeStructureFound(false);
+      setAddPreview(null);
       setShowAddForm(false);
       fetchInitialData(); 
     } else {
@@ -381,6 +413,7 @@ export default function AdminStudentManagementPage() {
   const cancelAddForm = () => {
     setShowAddForm(false);
     form.reset();
+    setAddPreview(null);
   }
 
   if (!authUser && !isLoadingData) { 
@@ -488,6 +521,14 @@ export default function AdminStudentManagementPage() {
                         <FormMessage />
                       </FormItem>
                   )}/>
+                  <FormItem>
+                     <Label>Profile Photo</Label>
+                     <div className="flex items-center gap-4">
+                        <img src={editPreview || 'https://placehold.co/80x80.png'} alt="Avatar Preview" className="h-20 w-20 rounded-md object-cover border" data-ai-hint="profile avatar"/>
+                        <Button type="button" variant="outline" onClick={() => editFileRef.current?.click()}><Upload className="mr-2 h-4 w-4"/> Change</Button>
+                        <Input type="file" ref={editFileRef} className="sr-only" onChange={(e) => handleFileChange(e, 'edit')} accept="image/*"/>
+                     </div>
+                  </FormItem>
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" disabled={isSubmitting || isLoadingData}>
@@ -539,6 +580,15 @@ export default function AdminStudentManagementPage() {
                       </FormItem>
                     )}/>
                     <FormField control={form.control} name="quota" render={({ field }) => (<FormItem><FormLabel>Quota</FormLabel><FormControl><Input placeholder="e.g., Full Paying" {...field} disabled={isSubmitting}/></FormControl><FormMessage /></FormItem>)}/>
+                    
+                    <FormItem>
+                         <Label>Profile Photo</Label>
+                         <div className="flex items-center gap-4">
+                            <img src={addPreview || 'https://placehold.co/80x80.png'} alt="Avatar Preview" className="h-20 w-20 rounded-md object-cover border" data-ai-hint="profile avatar"/>
+                            <Button type="button" variant="outline" onClick={() => addFileRef.current?.click()}><Upload className="mr-2 h-4 w-4"/> Upload Photo</Button>
+                            <Input type="file" ref={addFileRef} className="sr-only" onChange={(e) => handleFileChange(e, 'add')} accept="image/*"/>
+                         </div>
+                    </FormItem>
 
                     <div className="md:col-span-2 border-t pt-6 space-y-6">
                         <h3 className="font-medium text-lg">Portal Credentials & Class</h3>

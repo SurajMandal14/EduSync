@@ -36,12 +36,14 @@ export async function updateUserProfile(userId: string, values: z.infer<typeof u
       name,
       updatedAt: new Date(),
     };
-
+    
+    // Only set fields if they are provided in the form data
     if (phone !== undefined) {
       updateData.phone = phone;
     }
+
     if (avatarUrl !== undefined) {
-        // Allow empty string to clear avatar, otherwise it must be a valid URL (checked by Zod)
+        // Allow empty string to clear avatar, or data URI / URL to set it
         updateData.avatarUrl = avatarUrl === "" ? undefined : avatarUrl;
     }
 
