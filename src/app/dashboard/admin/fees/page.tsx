@@ -24,6 +24,7 @@ import { recordFeePayment, getFeePaymentsBySchool } from "@/app/actions/fees";
 import { getFeeConcessionsForSchool } from "@/app/actions/concessions";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; 
 import { format } from "date-fns";
+import type { NursingStudentInfo, NursingFeeSummary } from '@/components/report-cards/NursingCollege';
 
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
@@ -97,6 +98,13 @@ export default function FeeManagementPage() {
     const classFeeConfig = schoolConfig.tuitionFees.find(cf => cf.className === className);
     if (!classFeeConfig || !classFeeConfig.terms) return 0;
     return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
+  }, []);
+
+  const calculateAnnualBusFee = useCallback((student: Partial<AppUser> | null, schoolConfig: School | null): number => {
+    if (!student || !student.busRouteLocation || !student.busClassCategory || !schoolConfig || !schoolConfig.busFeeStructures) return 0;
+    const feeConfig = schoolConfig.busFeeStructures.find(bfs => bfs.location === student.busRouteLocation && bfs.classCategory === student.busClassCategory);
+    if (!feeConfig || !feeConfig.terms) return 0;
+    return feeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
   }, []);
 
 
@@ -208,7 +216,7 @@ export default function FeeManagementPage() {
     }) as StudentFeeDetailsProcessed[];
     setStudentFeeList(processedList.sort((a,b) => (a.className || '').localeCompare(b.className || '') || a.name!.localeCompare(b.name!)));
 
-  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, currentAcademicYear, classOptions]);
+  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, calculateAnnualBusFee, currentAcademicYear, classOptions]);
 
   useEffect(() => {
      processStudentFeeDetails();
@@ -283,14 +291,37 @@ export default function FeeManagementPage() {
     const latestPayment = studentPayments.sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())[0];
     
     if (latestPayment && latestPayment._id) {
-      let receiptUrl = `/dashboard/admin/fees/receipt/${latestPayment._id.toString()}`;
-      // Check which template to use
-      if (schoolDetails.reportCardTemplate === 'nursing_college') {
-        receiptUrl = `/dashboard/admin/fees/receipt-nursing/${latestPayment._id.toString()}`;
-      }
+        let receiptUrl = `/dashboard/admin/fees/receipt/${latestPayment._id.toString()}`;
+        let queryParams = `?studentName=${encodeURIComponent(student.name || '')}&className=${encodeURIComponent(student.className || '')}`;
+
+        if (schoolDetails.reportCardTemplate === 'nursing_college') {
+            receiptUrl = `/dashboard/admin/fees/receipt-nursing/${latestPayment._id.toString()}`;
+
+            const classOption = classOptions.find(c => c.value === student.classId);
+            const studentInfo: NursingStudentInfo = {
+                schoolName: schoolDetails.schoolName,
+                schoolAddress: (schoolDetails as any).address || 'Mirchaiya-7, Siraha',
+                studentName: student.name,
+                symbolNo: student.symbolNo,
+                course: classOption?.name,
+                quota: student.quota,
+                address: student.district,
+                photoUrl: student.avatarUrl,
+            };
+
+            const totalAnnualBusFee = calculateAnnualBusFee(student, schoolDetails);
+            const feeSummary: NursingFeeSummary = {
+                totalAnnualTuition: student.totalAnnualTuitionFee,
+                totalAnnualBusFee: totalAnnualBusFee,
+                totalConcessions: student.totalConcessions,
+                totalPaid: student.paidAmount,
+                amountOfThisPayment: latestPayment.amountPaid,
+            };
+            
+            queryParams = `?studentInfo=${encodeURIComponent(JSON.stringify(studentInfo))}&feeSummary=${encodeURIComponent(JSON.stringify(feeSummary))}`;
+        }
       
-      receiptUrl += `?studentName=${encodeURIComponent(student.name || '')}&className=${encodeURIComponent(student.className || '')}`;
-      window.open(receiptUrl, '_blank');
+        window.open(`${receiptUrl}${queryParams}`, '_blank');
     } else {
        toast({variant: "destructive", title: "Error", description: "Could not identify the latest payment for receipt generation."});
     }
@@ -518,5 +549,3 @@ export default function FeeManagementPage() {
     </div>
   );
 }
-
-    

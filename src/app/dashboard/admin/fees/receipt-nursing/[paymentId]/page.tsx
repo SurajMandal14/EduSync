@@ -1,137 +1,50 @@
+
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { getPaymentById } from '@/app/actions/fees';
-import { getSchoolById } from '@/app/actions/schools'; 
-import { getSchoolUsers } from '@/app/actions/schoolUsers';
-import { getFeePaymentsByStudent } from '@/app/actions/fees';
-import { getFeeConcessionsForSchool } from '@/app/actions/concessions';
-import { getClassDetailsById } from '@/app/actions/classes';
-import type { FeePayment } from '@/types/fees';
-import type { School, ClassTuitionFeeConfig } from '@/types/school';
-import type { User } from '@/types/user';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
 import NursingCollegeFeeSlip, { type NursingStudentInfo, type NursingFeeSummary } from '@/components/report-cards/NursingCollege';
 
-const getCurrentAcademicYear = (): string => {
-  const today = new Date();
-  const currentMonth = today.getMonth(); 
-  const currentYear = today.getFullYear();
-  if (currentMonth >= 5) { 
-    return `${currentYear}-${currentYear + 1}`;
-  } else { 
-    return `${currentYear - 1}-${currentYear}`;
-  }
-};
-
-
 export default function NursingFeeReceiptPage() {
-  const params = useParams();
-  const paymentId = params.paymentId as string;
-  
-  const [payment, setPayment] = useState<FeePayment | null>(null);
-  const [school, setSchool] = useState<School | null>(null);
-  const [student, setStudent] = useState<Partial<User> | null>(null);
+  const [studentInfo, setStudentInfo] = useState<NursingStudentInfo | null>(null);
   const [feeSummary, setFeeSummary] = useState<NursingFeeSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const calculateAnnualTuitionFee = useCallback((classConfig: ClassTuitionFeeConfig | undefined): number => {
-    if (!classConfig || !classConfig.terms) return 0;
-    return classConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
-  }, []);
-
-  const calculateAnnualBusFee = useCallback((student: Partial<User> | null, schoolConfig: School | null): number => {
-    if (!student || !student.busRouteLocation || !student.busClassCategory || !schoolConfig || !schoolConfig.busFeeStructures) return 0;
-    const feeConfig = schoolConfig.busFeeStructures.find(bfs => bfs.location === student.busRouteLocation && bfs.classCategory === student.busClassCategory);
-    if (!feeConfig || !feeConfig.terms) return 0;
-    return feeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
-  }, []);
-
-  const fetchReceiptData = useCallback(async () => {
-    if (!paymentId) {
-      setError("Payment ID is missing.");
-      setIsLoading(false);
-      return;
+  const searchParams = useMemo(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search);
     }
-    setIsLoading(true);
-    setError(null);
-    try {
-      const paymentResult = await getPaymentById(paymentId);
-      if (!paymentResult.success || !paymentResult.payment) {
-          setError(paymentResult.message || "Could not load payment details.");
-          setPayment(null);
-          setIsLoading(false);
-          return;
-      }
-
-      const currentPayment = paymentResult.payment;
-      setPayment(currentPayment);
-      
-      const studentIdToFind = currentPayment.studentId.toString();
-
-      const [schoolResult, allUsersResult, allPaymentsResult, concessionsResult] = await Promise.all([
-          getSchoolById(currentPayment.schoolId.toString()),
-          getSchoolUsers(currentPayment.schoolId.toString()),
-          getFeePaymentsByStudent(studentIdToFind, currentPayment.schoolId.toString()),
-          getFeeConcessionsForSchool(currentPayment.schoolId.toString(), getCurrentAcademicYear())
-      ]);
-
-      if (!schoolResult.success || !schoolResult.school) {
-        setError(schoolResult.message || "Could not load school details.");
-        setIsLoading(false); return;
-      }
-      const currentSchool = schoolResult.school;
-      setSchool(currentSchool);
-
-      let currentStudent: Partial<User> | null = null;
-      if (allUsersResult.success && allUsersResult.users) {
-          currentStudent = allUsersResult.users.find(u => u._id === studentIdToFind) || null;
-      }
-      
-      if (!currentStudent) {
-        setError("Could not find the student associated with this payment.");
-        setIsLoading(false); return;
-      }
-      setStudent(currentStudent);
-
-      let studentClassName: string | undefined = undefined;
-      if (currentStudent.classId) {
-        const classDetailsRes = await getClassDetailsById(currentStudent.classId, currentSchool._id);
-        studentClassName = classDetailsRes.classDetails?.name;
-      }
-      
-      const tuitionFeeConfig = currentSchool.tuitionFees.find(tf => tf.className === studentClassName);
-      const totalAnnualTuition = calculateAnnualTuitionFee(tuitionFeeConfig);
-      
-      const totalAnnualBusFee = calculateAnnualBusFee(currentStudent, currentSchool);
-      const totalPaid = (allPaymentsResult.payments || []).reduce((sum, p) => sum + p.amountPaid, 0);
-      const studentConcessions = (concessionsResult.concessions || []).filter(c => c.studentId === studentIdToFind);
-      const totalConcessions = studentConcessions.reduce((sum, c) => sum + c.amount, 0);
-
-
-      setFeeSummary({
-        totalAnnualTuition,
-        totalAnnualBusFee,
-        totalConcessions,
-        totalPaid,
-        amountOfThisPayment: currentPayment.amountPaid,
-      });
-
-    } catch (e) {
-      console.error("Fetch receipt data error:", e);
-      setError("An unexpected error occurred while fetching receipt data.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [paymentId, calculateAnnualTuitionFee, calculateAnnualBusFee]);
+    return null;
+  }, []);
 
   useEffect(() => {
-    fetchReceiptData();
-  }, [fetchReceiptData]);
+    if (searchParams) {
+      const studentInfoParam = searchParams.get('studentInfo');
+      const feeSummaryParam = searchParams.get('feeSummary');
+
+      if (studentInfoParam && feeSummaryParam) {
+        try {
+          const parsedStudentInfo = JSON.parse(decodeURIComponent(studentInfoParam));
+          const parsedFeeSummary = JSON.parse(decodeURIComponent(feeSummaryParam));
+          setStudentInfo(parsedStudentInfo);
+          setFeeSummary(parsedFeeSummary);
+        } catch (e) {
+          setError("Failed to parse receipt data from URL. Please try generating it again.");
+          console.error("Parsing error:", e);
+        }
+      } else {
+        setError("Receipt data is missing. Please close this window and generate the receipt again.");
+      }
+      setIsLoading(false);
+    } else {
+        // Still waiting for client-side hydration
+        setIsLoading(true);
+    }
+  }, [searchParams]);
 
   const handlePrint = () => {
     if (typeof window !== "undefined") {
@@ -159,27 +72,16 @@ export default function NursingFeeReceiptPage() {
     );
   }
 
-  if (!payment || !school || !student || !feeSummary) {
+  if (!studentInfo || !feeSummary) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-muted p-4 text-center">
         <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
         <h1 className="text-2xl font-semibold mb-2">Receipt Data Not Found</h1>
-        <p className="text-muted-foreground mb-6">The requested payment or school details could not be found.</p>
+        <p className="text-muted-foreground mb-6">Could not find the necessary information to display this receipt.</p>
         <Button onClick={() => typeof window !== "undefined" && window.close()}>Close</Button>
       </div>
     );
   }
-  
-  const studentInfoForTemplate: NursingStudentInfo = {
-    schoolName: school.schoolName,
-    schoolAddress: (school as any).address || 'Mirchaiya-7, Siraha', 
-    studentName: student.name,
-    symbolNo: student.symbolNo,
-    course: student.classId, 
-    quota: student.quota,
-    address: student.district, 
-    photoUrl: (student as any).avatarUrl,
-  };
 
   return (
     <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">
@@ -192,7 +94,7 @@ export default function NursingFeeReceiptPage() {
       \`}</style>
       <Card className="w-full max-w-2xl shadow-xl printable-receipt-container print:shadow-none print:border-none">
         <CardContent className="p-0">
-          <NursingCollegeFeeSlip studentInfo={studentInfoForTemplate} feeSummary={feeSummary} />
+          <NursingCollegeFeeSlip studentInfo={studentInfo} feeSummary={feeSummary} />
         </CardContent>
       </Card>
       <div className="mt-8 flex gap-4 no-print w-full max-w-2xl">
