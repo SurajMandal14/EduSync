@@ -1,12 +1,58 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
 import NursingCollegeFeeSlip, { type NursingStudentInfo, type NursingFeeSummary } from '@/components/report-cards/NursingCollege';
+
+// This is the component that will be rendered.
+// It is defined at the top level of the module.
+const ReceiptDisplay = ({ studentInfo, feeSummary }: { studentInfo: NursingStudentInfo | null, feeSummary: NursingFeeSummary | null }) => {
+  const handlePrint = () => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
+
+  if (!studentInfo || !feeSummary) {
+      return (
+          <div className="flex flex-col items-center justify-center min-h-screen bg-muted p-4 text-center">
+              <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
+              <h1 className="text-2xl font-semibold mb-2">Receipt Data Not Found</h1>
+              <p className="text-muted-foreground mb-6">Could not find the necessary information to display this receipt.</p>
+              <Button onClick={() => typeof window !== "undefined" && window.close()}>Close</Button>
+          </div>
+      );
+  }
+
+  return (
+      <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">
+          <style jsx global>{`
+              @media print {
+                  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                  .no-print { display: none !important; }
+                  .printable-receipt-container { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
+              }
+          `}</style>
+          <Card className="w-full max-w-2xl shadow-xl printable-receipt-container print:shadow-none print:border-none">
+              <CardContent className="p-0">
+                  <NursingCollegeFeeSlip studentInfo={studentInfo} feeSummary={feeSummary} />
+              </CardContent>
+          </Card>
+          <div className="mt-8 flex gap-4 no-print w-full max-w-2xl">
+              <Button onClick={handlePrint} className="w-full sm:w-auto flex-1">
+                  <Printer className="mr-2 h-4 w-4" /> Print Receipt
+              </Button>
+              <Button variant="outline" onClick={() => typeof window !== "undefined" && window.close()} className="w-full sm:w-auto flex-1">
+                  Close
+              </Button>
+          </div>
+      </div>
+  );
+};
+
 
 export default function NursingFeeReceiptPage() {
   const [studentInfo, setStudentInfo] = useState<NursingStudentInfo | null>(null);
@@ -14,43 +60,28 @@ export default function NursingFeeReceiptPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const searchParams = useMemo(() => {
-    if (typeof window !== "undefined") {
-      return new URLSearchParams(window.location.search);
-    }
-    return null;
-  }, []);
-
   useEffect(() => {
-    if (searchParams) {
-      const studentInfoParam = searchParams.get('studentInfo');
-      const feeSummaryParam = searchParams.get('feeSummary');
+    // This code runs only on the client, after the component has mounted.
+    // This is safe and avoids server/build time errors.
+    const searchParams = new URLSearchParams(window.location.search);
+    const studentInfoParam = searchParams.get('studentInfo');
+    const feeSummaryParam = searchParams.get('feeSummary');
 
-      if (studentInfoParam && feeSummaryParam) {
-        try {
-          const parsedStudentInfo = JSON.parse(decodeURIComponent(studentInfoParam));
-          const parsedFeeSummary = JSON.parse(decodeURIComponent(feeSummaryParam));
-          setStudentInfo(parsedStudentInfo);
-          setFeeSummary(parsedFeeSummary);
-        } catch (e) {
-          setError("Failed to parse receipt data from URL. Please try generating it again.");
-          console.error("Parsing error:", e);
-        }
-      } else {
-        setError("Receipt data is missing. Please close this window and generate the receipt again.");
+    if (studentInfoParam && feeSummaryParam) {
+      try {
+        const parsedStudentInfo = JSON.parse(decodeURIComponent(studentInfoParam));
+        const parsedFeeSummary = JSON.parse(decodeURIComponent(feeSummaryParam));
+        setStudentInfo(parsedStudentInfo);
+        setFeeSummary(parsedFeeSummary);
+      } catch (e) {
+        setError("Failed to parse receipt data from URL. Please try generating it again.");
+        console.error("Parsing error:", e);
       }
-      setIsLoading(false);
     } else {
-        // Still waiting for client-side hydration
-        setIsLoading(true);
+      setError("Receipt data is missing. Please close this window and generate the receipt again.");
     }
-  }, [searchParams]);
-
-  const handlePrint = () => {
-    if (typeof window !== "undefined") {
-      window.print();
-    }
-  };
+    setIsLoading(false);
+  }, []); // The empty dependency array ensures this runs only once on the client.
 
   if (isLoading) {
     return (
@@ -72,39 +103,6 @@ export default function NursingFeeReceiptPage() {
     );
   }
 
-  if (!studentInfo || !feeSummary) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-muted p-4 text-center">
-        <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
-        <h1 className="text-2xl font-semibold mb-2">Receipt Data Not Found</h1>
-        <p className="text-muted-foreground mb-6">Could not find the necessary information to display this receipt.</p>
-        <Button onClick={() => typeof window !== "undefined" && window.close()}>Close</Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">
-      <style jsx global>{\`
-        @media print {
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .no-print { display: none !important; }
-          .printable-receipt-container { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
-        }
-      \`}</style>
-      <Card className="w-full max-w-2xl shadow-xl printable-receipt-container print:shadow-none print:border-none">
-        <CardContent className="p-0">
-          <NursingCollegeFeeSlip studentInfo={studentInfo} feeSummary={feeSummary} />
-        </CardContent>
-      </Card>
-      <div className="mt-8 flex gap-4 no-print w-full max-w-2xl">
-        <Button onClick={handlePrint} className="w-full sm:w-auto flex-1">
-          <Printer className="mr-2 h-4 w-4" /> Print Receipt
-        </Button>
-        <Button variant="outline" onClick={() => typeof window !== "undefined" && window.close()} className="w-full sm:w-auto flex-1">
-          Close
-        </Button>
-      </div>
-    </div>
-  );
+  // Render the separate display component with the state data.
+  return <ReceiptDisplay studentInfo={studentInfo} feeSummary={feeSummary} />;
 }
