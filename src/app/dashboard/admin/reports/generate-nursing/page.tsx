@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,12 +12,10 @@ import { FileText, Loader2, User, School as SchoolIconUI, Search as SearchIcon, 
 import { getStudentDetailsForReportCard } from '@/app/actions/schoolUsers';
 import { getSchoolById } from '@/app/actions/schools';
 import type { School } from '@/types/school';
-import type { MarkEntry as MarkEntryType } from '@/types/marks';
 import type { SchoolClass } from '@/types/classes';
 import { getClassDetailsById } from '@/app/actions/classes';
 import { getStudentMarksForReportCard } from '@/app/actions/marks';
 import NursingCollegeReportCard, { type NursingStudentInfo as ReportStudentInfo, type NursingMarksInfo } from '@/components/report-cards/NursingCollegeReportCard';
-
 
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
@@ -46,7 +43,7 @@ export default function GenerateNursingReportPage() {
   const [studentClass, setStudentClass] = useState<SchoolClass | null>(null);
   const [admissionIdInput, setAdmissionIdInput] = useState<string>("");
   const [academicYear, setAcademicYear] = useState(getCurrentAcademicYear());
-  const [selectedTerminal, setSelectedTerminal] = useState<string>("Term 2"); // Default to 2nd term
+  const [selectedTerminal, setSelectedTerminal] = useState<string>("Term 2");
   const [isLoading, setIsLoading] = useState(false);
   
   const [studentInfo, setStudentInfo] = useState<ReportStudentInfo>({});
@@ -55,12 +52,16 @@ export default function GenerateNursingReportPage() {
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setAuthUser(parsedUser);
-      if (parsedUser.schoolId) {
-        getSchoolById(parsedUser.schoolId).then(res => {
-          if (res.success && res.school) setSchool(res.school);
-        });
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setAuthUser(parsedUser);
+        if (parsedUser?.schoolId) {
+          getSchoolById(parsedUser.schoolId).then(res => {
+            if (res.success && res.school) setSchool(res.school);
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse user from localStorage:", e);
       }
     }
   }, []);
@@ -107,25 +108,30 @@ export default function GenerateNursingReportPage() {
       session: academicYear
     });
 
-    const marksRes = await getStudentMarksForReportCard(studentData._id, authUser.schoolId, academicYear, studentData.classId!, selectedTerminal);
-    if (marksRes.success && marksRes.marks) {
-      const formattedMarks = (studentClassDetails?.subjects || []).map((subject, index) => {
-        const mark = marksRes.marks?.find(m => m.subjectName === subject.name && m.assessmentName === selectedTerminal);
-        return {
-          sn: index + 1,
-          subject: subject.name,
-          fullMarks: mark?.maxMarks || 80, // Default if not found
-          passMarks: (mark?.maxMarks || 80) * 0.4,
-          theoryMarks: mark?.marksObtained ?? 0, // Assuming theory marks are the main marksObtained
-          practicalMarks: 0, // Placeholder
-          totalMarks: mark?.marksObtained ?? 0,
-          remarks: (mark?.marksObtained ?? 0) >= ((mark?.maxMarks || 80) * 0.4) ? "Pass" : "Fail"
-        };
-      });
-      setMarks(formattedMarks);
+    if (studentData.classId) {
+      const marksRes = await getStudentMarksForReportCard(studentData._id, authUser.schoolId, academicYear, studentData.classId, selectedTerminal);
+      if (marksRes.success && marksRes.marks) {
+        const formattedMarks = (studentClassDetails?.subjects || []).map((subject, index) => {
+          const mark = marksRes.marks?.find(m => m.subjectName === subject.name && m.assessmentName === selectedTerminal);
+          return {
+            sn: index + 1,
+            subject: subject.name,
+            fullMarks: mark?.maxMarks || 80, // Default if not found
+            passMarks: (mark?.maxMarks || 80) * 0.4,
+            theoryMarks: mark?.marksObtained ?? 0, // Assuming theory marks are the main marksObtained
+            practicalMarks: 0, // Placeholder
+            totalMarks: mark?.marksObtained ?? 0,
+            remarks: (mark?.marksObtained ?? 0) >= ((mark?.maxMarks || 80) * 0.4) ? "Pass" : "Fail"
+          };
+        });
+        setMarks(formattedMarks);
+      } else {
+          setMarks([]);
+          toast({variant: "info", title: "No Marks Found", description: `No marks found for ${selectedTerminal} in ${academicYear}.`})
+      }
     } else {
-        setMarks([]);
-        toast({variant: "info", title: "No Marks Found", description: `No marks found for ${selectedTerminal} in ${academicYear}.`})
+      setMarks([]);
+      toast({variant: "warning", title: "No Class Assigned", description: "Student is not assigned to a class, cannot fetch marks."});
     }
 
     setIsLoading(false);
@@ -137,7 +143,7 @@ export default function GenerateNursingReportPage() {
 
   return (
     <div className="space-y-6">
-       <style jsx global>{\`
+      <style jsx global>{`
         @media print {
           body * { visibility: hidden; }
           .printable-report-card, .printable-report-card * { visibility: visible !important; }
@@ -147,7 +153,7 @@ export default function GenerateNursingReportPage() {
           }
           .no-print { display: none !important; }
         }
-      \`}</style>
+      `}</style>
       <Card className="no-print">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center"><FileText className="mr-2 h-6 w-6"/>Generate Nursing Report Card</CardTitle>
@@ -155,8 +161,8 @@ export default function GenerateNursingReportPage() {
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-2 items-end">
           <div className="w-full sm:w-auto">
-            <Label htmlFor="admissionIdInput" className="mb-1 flex items-center"><User className="mr-2 h-4 w-4"/>Admission ID</Label>
-            <Input id="admissionIdInput" placeholder="Enter Admission ID" value={admissionIdInput} onChange={e => setAdmissionIdInput(e.target.value)} disabled={isLoading}/>
+            <Label htmlFor="admissionIdInput" className="mb-1 flex items-center"><User className="mr-2 h-4 w-4"/>Registration No.</Label>
+            <Input id="admissionIdInput" placeholder="Enter Registration No." value={admissionIdInput} onChange={e => setAdmissionIdInput(e.target.value)} disabled={isLoading}/>
           </div>
           <div className="w-full sm:w-auto">
             <Label htmlFor="academicYearInput" className="mb-1">Academic Year</Label>
@@ -184,7 +190,13 @@ export default function GenerateNursingReportPage() {
         </CardContent>
       </Card>
       
-      {student && (
+      {isLoading && (
+          <div className="flex justify-center items-center p-10">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+      )}
+
+      {!isLoading && student && (
         <div className="printable-report-card bg-white p-4 rounded-lg shadow-md">
             <NursingCollegeReportCard studentInfo={studentInfo} marks={marks} />
         </div>
