@@ -8,19 +8,15 @@ import { Award, Printer, RotateCcw, Loader2, Info, AlertTriangle, Eye, EyeOff } 
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole } from '@/types/user';
 import { getStudentReportCard } from '@/app/actions/reports';
-import type { ReportCardData, FormativeAssessmentEntryForStorage } from '@/types/report';
-import type { SchoolClassSubject } from '@/types/classes';
+import type { ReportCardData } from '@/types/report';
 import CBSEStateFront, { 
     type StudentData as FrontStudentData, 
     type SubjectFAData as FrontSubjectFAData, 
-    type CoCurricularSAData as FrontCoCurricularSAData,
 } from '@/components/report-cards/CBSEStateFront';
-import CBSEStateBack, {
-    type SARowData as BackSARowData,
-    type AttendanceMonthData as BackAttendanceMonthData,
-} from '@/components/report-cards/CBSEStateBack';
-import { Input } from '@/components/ui/input';
+import CBSEStateBack from '@/components/report-cards/CBSEStateBack';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
+import { getAvailableYearsAndTermsForStudent, type AvailableYearsAndTerms } from '@/app/actions/marks';
 
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
@@ -40,7 +36,11 @@ export default function StudentResultsPage() {
   const [reportCardData, setReportCardData] = useState<ReportCardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [targetAcademicYear, setTargetAcademicYear] = useState<string>(getCurrentAcademicYear());
+  
+  const [availableYearsAndTerms, setAvailableYearsAndTerms] = useState<AvailableYearsAndTerms | null>(null);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(getCurrentAcademicYear());
+  const [selectedTerm, setSelectedTerm] = useState<string>("");
+
   const [showBackSide, setShowBackSide] = useState(false);
 
 
@@ -63,6 +63,27 @@ export default function StudentResultsPage() {
       setError("No active session. Please log in.");
     }
   }, []);
+  
+  useEffect(() => {
+    async function fetchAvailableYears() {
+      if (authUser?._id && authUser?.schoolId) {
+        const res = await getAvailableYearsAndTermsForStudent(authUser._id, authUser.schoolId);
+        if (res.success && res.data && Object.keys(res.data).length > 0) {
+          setAvailableYearsAndTerms(res.data);
+          // Set default term if available
+          if(res.data[selectedAcademicYear] && res.data[selectedAcademicYear][0]) {
+            setSelectedTerm(res.data[selectedAcademicYear][0]);
+          } else {
+            setSelectedTerm("");
+          }
+        } else {
+          setAvailableYearsAndTerms(null);
+        }
+      }
+    }
+    fetchAvailableYears();
+  }, [authUser, selectedAcademicYear]);
+
 
   const fetchReport = useCallback(async () => {
     if (!authUser || !authUser._id || !authUser.schoolId) {
@@ -71,8 +92,14 @@ export default function StudentResultsPage() {
       setReportCardData(null);
       return;
     }
-    if (!targetAcademicYear.match(/^\d{4}-\d{4}$/)) {
+    if (!selectedAcademicYear.match(/^\d{4}-\d{4}$/)) {
         setError("Invalid academic year format. Please use YYYY-YYYY.");
+        setIsLoading(false);
+        setReportCardData(null);
+        return;
+    }
+     if (!selectedTerm) {
+        setError("Please select a term to view the report.");
         setIsLoading(false);
         setReportCardData(null);
         return;
@@ -83,14 +110,13 @@ export default function StudentResultsPage() {
     setReportCardData(null);
 
     try {
-      // Students should only see published reports
-      const result = await getStudentReportCard(authUser._id, authUser.schoolId, targetAcademicYear, undefined, true); 
+      const result = await getStudentReportCard(authUser._id, authUser.schoolId, selectedAcademicYear, selectedTerm, true); 
       if (result.success && result.reportCard) {
         setReportCardData(result.reportCard);
       } else {
         setReportCardData(null);
-        setError(result.message || "Failed to load report card."); // Show message from action
-        if (result.message !== 'No report card found for the specified criteria.' && result.message !== 'Report card is not yet published or does not exist for the selected criteria.') {
+        setError(result.message || "Failed to load report card.");
+        if (result.message && !result.message.toLowerCase().includes("disabled")) {
              toast({ variant: "info", title: "Report Card Status", description: result.message });
         }
       }
@@ -101,15 +127,15 @@ export default function StudentResultsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [authUser, targetAcademicYear, toast]);
+  }, [authUser, selectedAcademicYear, selectedTerm, toast]);
 
   useEffect(() => {
-    if (authUser?._id && authUser?.schoolId) {
+    if (authUser?._id && authUser?.schoolId && selectedTerm) {
       fetchReport();
     } else if (!authUser && localStorage.getItem('loggedInUser') === null){
         setIsLoading(false); 
     }
-  }, [authUser, fetchReport]);
+  }, [authUser, selectedTerm, fetchReport]);
 
 
   const handlePrint = () => {
@@ -191,18 +217,21 @@ export default function StudentResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-grow">
-                <Label htmlFor="academicYearSelect">Select Academic Year</Label>
-                <Input 
-                    id="academicYearSelect"
-                    value={targetAcademicYear}
-                    onChange={(e) => setTargetAcademicYear(e.target.value)}
-                    placeholder="YYYY-YYYY"
-                    className="max-w-xs"
-                    disabled={isLoading}
-                />
+            <div className="w-full sm:w-auto">
+              <Label htmlFor="academicYearSelect">Select Academic Year</Label>
+              <Select value={selectedAcademicYear} onValueChange={setSelectedAcademicYear} disabled={isLoading || !availableYearsAndTerms}>
+                  <SelectTrigger id="academicYearSelect" className="max-w-xs"><SelectValue placeholder="Select Year" /></SelectTrigger>
+                  <SelectContent>{availableYearsAndTerms && Object.keys(availableYearsAndTerms).map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-            <Button onClick={fetchReport} disabled={isLoading || !targetAcademicYear.match(/^\d{4}-\d{4}$/)}>
+             <div className="w-full sm:w-auto">
+                <Label htmlFor="termSelect">Select Term</Label>
+                <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoading || !availableYearsAndTerms || !(availableYearsAndTerms[selectedAcademicYear]?.length > 0)}>
+                    <SelectTrigger id="termSelect" className="max-w-xs"><SelectValue placeholder="Select Term" /></SelectTrigger>
+                    <SelectContent>{availableYearsAndTerms && (availableYearsAndTerms[selectedAcademicYear] || []).map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
+                </Select>
+            </div>
+            <Button onClick={fetchReport} disabled={isLoading || !selectedAcademicYear.match(/^\d{4}-\d{4}$/) || !selectedTerm}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
                 Fetch Report
             </Button>
@@ -228,13 +257,13 @@ export default function StudentResultsPage() {
          </Card>
       )}
 
-      {!isLoading && !error && !reportCardData && authUser && ( // Only show "No Report Found" if user is logged in and no error
+      {!isLoading && !error && !reportCardData && authUser && (
         <Card className="no-print">
           <CardContent className="p-10 text-center">
             <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-semibold">No Report Card Found</p>
             <p className="text-muted-foreground">
-              Your report card for the academic year '{targetAcademicYear}' is not yet published or does not exist.
+              Your report card for the selected criteria is not yet published or does not exist.
               Please check back later or contact your school administration.
             </p>
           </CardContent>

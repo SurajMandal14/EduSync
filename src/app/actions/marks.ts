@@ -356,7 +356,7 @@ export async function getAvailableYearsAndTermsForStudent(studentId: string, sch
       let term: string | null = null;
       if (assessment.startsWith('FA') || assessment.startsWith('SA')) {
         term = 'Annual'; // Group all CBSE marks under one term
-      } else if (['Term1', 'Term2', 'Term3', 'Final'].includes(assessment)) {
+      } else if (['Term 1', 'Term 2', 'Term 3', 'Final Exam'].includes(assessment)) {
         term = assessment;
       }
 
