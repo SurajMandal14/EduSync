@@ -7,8 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
 import NursingCollegeFeeSlip, { type NursingStudentInfo, type NursingFeeSummary } from '@/components/report-cards/NursingCollege';
 
-// This is the component that will be rendered.
-// It is defined at the top level of the module.
 const ReceiptDisplay = ({ studentInfo, feeSummary }: { studentInfo: NursingStudentInfo | null, feeSummary: NursingFeeSummary | null }) => {
   const handlePrint = () => {
     if (typeof window !== "undefined") {
@@ -61,8 +59,6 @@ export default function NursingFeeReceiptPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // This code runs only on the client, after the component has mounted.
-    // This is safe and avoids server/build time errors.
     const searchParams = new URLSearchParams(window.location.search);
     const studentInfoParam = searchParams.get('studentInfo');
     const feeSummaryParam = searchParams.get('feeSummary');
@@ -81,7 +77,7 @@ export default function NursingFeeReceiptPage() {
       setError("Receipt data is missing. Please close this window and generate the receipt again.");
     }
     setIsLoading(false);
-  }, []); // The empty dependency array ensures this runs only once on the client.
+  }, []);
 
   if (isLoading) {
     return (
@@ -103,6 +99,5 @@ export default function NursingFeeReceiptPage() {
     );
   }
 
-  // Render the separate display component with the state data.
   return <ReceiptDisplay studentInfo={studentInfo} feeSummary={feeSummary} />;
 }

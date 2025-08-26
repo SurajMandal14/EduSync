@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
@@ -21,11 +22,15 @@ export default function FeeReceiptPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Memoize searchParams to avoid re-renders
-  const searchParams = useMemo(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null, []);
+  const searchParams = useMemo(() => {
+      if (typeof window !== "undefined") {
+          return new URLSearchParams(window.location.search);
+      }
+      return null;
+  }, []);
+
   const studentNameQuery = searchParams?.get('studentName');
   const classNameQuery = searchParams?.get('className');
-
 
   const fetchReceiptData = useCallback(async () => {
     if (!paymentId) {

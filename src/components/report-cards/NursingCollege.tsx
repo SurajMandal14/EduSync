@@ -5,7 +5,7 @@ import React from 'react';
 
 // Updated interfaces to reflect real, calculated data
 export interface NursingStudentInfo {
-  regNo?: string;
+  regdNo?: string;
   email?: string;
   schoolName?: string;
   schoolAddress?: string;
@@ -31,7 +31,6 @@ interface NursingFeeSlipProps {
 }
 
 const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, feeSummary }) => {
-
   const {
     totalAnnualTuition,
     totalAnnualBusFee,
@@ -46,7 +45,7 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, fee
 
   return (
     <>
-      <style jsx global>{\`
+      <style jsx global>{`
         .fee-slip-container {
           font-family: Arial, sans-serif;
           width: 21cm;
@@ -125,7 +124,7 @@ const NursingCollegeFeeSlip: React.FC<NursingFeeSlipProps> = ({ studentInfo, fee
             justify-content: space-between;
             font-size: 12px;
         }
-      \`}</style>
+      `}</style>
       <div className="fee-slip-container">
         <div className="fee-slip-header">
           <h1>{studentInfo.schoolName || 'Mirchaiya Health Nursing Campus Pvt.Ltd'}</h1>
