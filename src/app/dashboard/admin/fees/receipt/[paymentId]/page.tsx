@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { getPaymentById } from '@/app/actions/fees';
 import { getSchoolById } from '@/app/actions/schools'; 
@@ -23,7 +23,7 @@ export default function FeeReceiptPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Memoize searchParams to avoid re-renders
-  const searchParams = React.useMemo(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null, []);
+  const searchParams = useMemo(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null, []);
   const studentNameQuery = searchParams?.get('studentName');
   const classNameQuery = searchParams?.get('className');
 
@@ -104,13 +104,13 @@ export default function FeeReceiptPage() {
 
   return (
     <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">
-      <style jsx global>{`
+      <style jsx global>{\`
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
           .print-receipt-container { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
         }
-      `}</style>
+      \`}</style>
       <Card className="w-full max-w-2xl shadow-xl print-receipt-container print:shadow-none print:border-none">
         <CardHeader className="text-center space-y-2">
           {school.schoolLogoUrl && (
@@ -181,4 +181,3 @@ export default function FeeReceiptPage() {
   );
 }
 
-    

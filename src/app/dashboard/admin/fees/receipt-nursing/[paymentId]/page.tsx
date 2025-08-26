@@ -184,13 +184,13 @@ export default function NursingFeeReceiptPage() {
 
   return (
     <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">
-      <style jsx global>{`
+      <style jsx global>{\`
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
           .printable-receipt-container { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
         }
-      `}</style>
+      \`}</style>
       <Card className="w-full max-w-2xl shadow-xl printable-receipt-container print:shadow-none print:border-none">
         <CardContent className="p-0">
           <NursingCollegeFeeSlip studentInfo={studentInfoForTemplate} feeSummary={feeSummary} />
@@ -207,3 +207,4 @@ export default function NursingFeeReceiptPage() {
     </div>
   );
 }
+

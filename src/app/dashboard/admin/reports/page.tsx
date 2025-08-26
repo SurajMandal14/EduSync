@@ -20,7 +20,7 @@ import type { User as AppUser } from "@/types/user";
 import type { School, TermFee } from "@/types/school";
 import type { FeePayment } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
-import { getReportCardsForClass, setReportPublicationStatusForClass, generateAndPublishReportsForClass } from "@/app/actions/reports"; // Added new actions
+import { getReportCardsForClass, generateAndPublishReportsForClass } from "@/app/actions/reports"; // Added new actions
 import type { BulkPublishReportInfo } from "@/types/report"; // Added type
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; // For class dropdown
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
@@ -947,3 +947,4 @@ export default function AdminReportsPage() {
     </div>
   );
 }
+

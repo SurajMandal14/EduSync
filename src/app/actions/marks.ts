@@ -279,7 +279,7 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     if (term) {
         if (term === 'Annual') {
             query.assessmentName = { $regex: /^(FA|SA)/ }; // All FA and SA marks for annual CBSE
-        } else if (['Term1', 'Term2', 'Term3', 'Final Exam'].includes(term)) { // Updated this line
+        } else if (['Term 1', 'Term 2', 'Term 3', 'Final Exam'].includes(term)) { // Updated this line
              query.assessmentName = term; // For Nursing template
         }
     }
@@ -372,3 +372,4 @@ export async function getAvailableYearsAndTermsForStudent(studentId: string, sch
     return { success: false, message: 'Failed to fetch available academic terms.', error: String(error) };
   }
 }
+

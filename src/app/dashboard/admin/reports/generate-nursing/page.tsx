@@ -17,7 +17,8 @@ import type { MarkEntry as MarkEntryType } from '@/types/marks';
 import type { SchoolClass } from '@/types/classes';
 import { getClassDetailsById } from '@/app/actions/classes';
 import { getStudentMarksForReportCard } from '@/app/actions/marks';
-import NursingCollege, { type NursingStudentInfo, type NursingMarksEntry } from '@/components/report-cards/NursingCollege';
+import NursingCollegeReportCard, { type NursingStudentInfo as ReportStudentInfo, type NursingMarksInfo } from '@/components/report-cards/NursingCollegeReportCard';
+
 
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
@@ -48,8 +49,8 @@ export default function GenerateNursingReportPage() {
   const [selectedTerminal, setSelectedTerminal] = useState<string>("Term 2"); // Default to 2nd term
   const [isLoading, setIsLoading] = useState(false);
   
-  const [studentInfo, setStudentInfo] = useState<NursingStudentInfo>({});
-  const [marks, setMarks] = useState<NursingMarksEntry[]>([]);
+  const [studentInfo, setStudentInfo] = useState<ReportStudentInfo>({});
+  const [marks, setMarks] = useState<NursingMarksInfo[]>([]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -93,12 +94,11 @@ export default function GenerateNursingReportPage() {
     }
     
     setStudentInfo({
-      regNo: (school as any)?.regNo || "70044/066/067", 
+      regdNo: (school as any)?.regNo || "70044/066/067", 
       email: (school as any)?.email || "mirchaiyanursingcampussiraha@gmail.com",
       schoolName: school?.schoolName || "Mirchaiya Health Nursing Campus Pvt.Ltd",
-      schoolAddress: "Mirchaiya-07, Siraha", 
-      symbolNo: studentData.examNo,
-      rollNo: studentData.rollNo,
+      address_school: "Mirchaiya-07, Siraha", 
+      symbolNo: studentData.symbolNo,
       studentName: studentData.name,
       fatherName: studentData.fatherName,
       program: studentClassDetails?.name, 
@@ -109,13 +109,17 @@ export default function GenerateNursingReportPage() {
 
     const marksRes = await getStudentMarksForReportCard(studentData._id, authUser.schoolId, academicYear, studentData.classId!, selectedTerminal);
     if (marksRes.success && marksRes.marks) {
-      const formattedMarks = (studentClassDetails?.subjects || []).map(subject => {
+      const formattedMarks = (studentClassDetails?.subjects || []).map((subject, index) => {
         const mark = marksRes.marks?.find(m => m.subjectName === subject.name && m.assessmentName === selectedTerminal);
         return {
+          sn: index + 1,
           subject: subject.name,
-          totalMarks: mark?.maxMarks || 80, // Default if not found
-          passingMarks: (mark?.maxMarks || 80) * 0.4,
-          obtainMarks: mark?.marksObtained ?? 0 // Use ?? 0 to handle null/undefined
+          fullMarks: mark?.maxMarks || 80, // Default if not found
+          passMarks: (mark?.maxMarks || 80) * 0.4,
+          theoryMarks: mark?.marksObtained ?? 0, // Assuming theory marks are the main marksObtained
+          practicalMarks: 0, // Placeholder
+          totalMarks: mark?.marksObtained ?? 0,
+          remarks: (mark?.marksObtained ?? 0) >= ((mark?.maxMarks || 80) * 0.4) ? "Pass" : "Fail"
         };
       });
       setMarks(formattedMarks);
@@ -133,7 +137,7 @@ export default function GenerateNursingReportPage() {
 
   return (
     <div className="space-y-6">
-       <style jsx global>{`
+       <style jsx global>{\`
         @media print {
           body * { visibility: hidden; }
           .printable-report-card, .printable-report-card * { visibility: visible !important; }
@@ -143,7 +147,7 @@ export default function GenerateNursingReportPage() {
           }
           .no-print { display: none !important; }
         }
-      `}</style>
+      \`}</style>
       <Card className="no-print">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center"><FileText className="mr-2 h-6 w-6"/>Generate Nursing Report Card</CardTitle>
@@ -182,9 +186,9 @@ export default function GenerateNursingReportPage() {
       
       {student && (
         <div className="printable-report-card bg-white p-4 rounded-lg shadow-md">
-            <NursingCollege studentInfo={studentInfo} marks={marks} />
+            <NursingCollegeReportCard studentInfo={studentInfo} marks={marks} />
         </div>
       )}
     </div>
-  )
+  );
 }
