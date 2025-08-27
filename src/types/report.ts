@@ -86,4 +86,5 @@ export interface BulkPublishReportInfo {
   registrationNo?: string;
   isPublished: boolean;
   hasReport: boolean;
+  term: string;
 }

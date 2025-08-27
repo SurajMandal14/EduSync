@@ -32,18 +32,6 @@ import Link from "next/link";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const getCurrentAcademicYear = (): string => {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  if (currentMonth >= 5) {
-    return `${currentYear}-${currentYear + 1}`;
-  } else {
-    return `${currentYear - 1}-${currentYear}`;
-  }
-};
-
-
 interface ClassAttendanceSummary {
   className: string;
   totalStudents: number;
@@ -103,12 +91,10 @@ export default function AdminReportsPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [lastFetchedSchoolId, setLastFetchedSchoolId] = useState<string | null>(null);
-  const currentAcademicYear = getCurrentAcademicYear();
 
   // States for Bulk Report Publishing
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [selectedClassForBulkPublish, setSelectedClassForBulkPublish] = useState<string>("");
-  const [academicYearForBulkPublish, setAcademicYearForBulkPublish] = useState<string>(currentAcademicYear);
   const [reportsForBulkPublish, setReportsForBulkPublish] = useState<BulkPublishReportInfo[]>([]);
   const [isLoadingBulkReports, setIsLoadingBulkReports] = useState(false);
   const [isBulkPublishing, setIsBulkPublishing] = useState(false);
@@ -295,7 +281,7 @@ export default function AdminReportsPage() {
         const studentTotalPaid = studentPayments.reduce((sum, p) => sum + p.amountPaid, 0);
 
         const studentConcessionsForYear = allSchoolConcessions.filter(
-            c => c.studentId.toString() === student._id.toString() && c.academicYear === currentAcademicYear
+            c => c.studentId.toString() === student._id.toString()
         );
         const studentTotalConcessions = studentConcessionsForYear.reduce((sum, c) => sum + c.amount, 0);
 
@@ -343,7 +329,7 @@ export default function AdminReportsPage() {
     });
     setFeeClassSummaries(feeSummaries.sort((a,b) => a.className.localeCompare(b.className)));
 
-  }, [allSchoolStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, currentAcademicYear, classOptions]);
+  }, [allSchoolStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, classOptions]);
 
 
   useEffect(() => {
@@ -370,7 +356,7 @@ export default function AdminReportsPage() {
           getSchoolUsers(authUser.schoolId.toString()),
           getSchoolById(authUser.schoolId.toString()),
           getFeePaymentsBySchool(authUser.schoolId.toString()),
-          getFeeConcessionsForSchool(authUser.schoolId.toString(), currentAcademicYear),
+          getFeeConcessionsForSchool(authUser.schoolId.toString()),
           getClassesForSchoolAsOptions(authUser.schoolId.toString())
         ]);
 
@@ -434,7 +420,7 @@ export default function AdminReportsPage() {
     }
 
     setIsLoading(false);
-  }, [authUser, reportDate, toast, lastFetchedSchoolId, allSchoolStudents.length, currentAcademicYear]);
+  }, [authUser, reportDate, toast, lastFetchedSchoolId, allSchoolStudents.length]);
 
   useEffect(() => {
     if (authUser && authUser.schoolId) {
@@ -540,7 +526,7 @@ export default function AdminReportsPage() {
       const y = (pdfHeight - newImgHeight) / 2;
 
       pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
-      pdf.save(`Fee_Collection_Report_${schoolDetails.schoolName.replace(/\s+/g, '_')}_${currentAcademicYear}.pdf`);
+      pdf.save(`Fee_Collection_Report_${schoolDetails.schoolName.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast({ variant: "destructive", title: "PDF Error", description: "Could not generate fee report PDF. See console for details."});
@@ -550,17 +536,17 @@ export default function AdminReportsPage() {
   };
 
   const handleLoadReportsForBulkPublish = async () => {
-    if (!authUser?.schoolId || !selectedClassForBulkPublish || !academicYearForBulkPublish) {
-      toast({ variant: "destructive", title: "Missing Information", description: "Please select a class and academic year."});
+    if (!authUser?.schoolId || !selectedClassForBulkPublish) {
+      toast({ variant: "destructive", title: "Missing Information", description: "Please select a class."});
       setReportsForBulkPublish([]);
       return;
     }
     setIsLoadingBulkReports(true);
-    const result = await getReportCardsForClass(authUser.schoolId.toString(), selectedClassForBulkPublish, academicYearForBulkPublish);
+    const result = await getReportCardsForClass(authUser.schoolId.toString(), selectedClassForBulkPublish);
     if (result.success && result.reports) {
       setReportsForBulkPublish(result.reports);
       if (result.reports.length === 0) {
-        toast({title: "No Students Found", description: "No students found in this class for the selected academic year."});
+        toast({title: "No Students Found", description: "No students found in this class."});
       }
     } else {
       toast({variant: "destructive", title: "Error Loading Reports", description: result.message || "Could not load report statuses."});
@@ -570,12 +556,12 @@ export default function AdminReportsPage() {
   };
 
   const handleBulkAction = async (publish: boolean) => {
-    if (!authUser?.schoolId || !authUser?._id || !selectedClassForBulkPublish || !academicYearForBulkPublish) {
+    if (!authUser?.schoolId || !authUser?._id || !selectedClassForBulkPublish) {
       toast({ variant: "destructive", title: "Error", description: "Required information is missing to perform this action."});
       return;
     }
     setIsBulkPublishing(true);
-    const result = await generateAndPublishReportsForClass(authUser.schoolId.toString(), selectedClassForBulkPublish, academicYearForBulkPublish, authUser._id.toString(), publish);
+    const result = await generateAndPublishReportsForClass(authUser.schoolId.toString(), selectedClassForBulkPublish, authUser._id.toString(), publish);
     if (result.success) {
       toast({ title: "Bulk Action Successful", description: result.message});
       handleLoadReportsForBulkPublish(); // Refresh the list
@@ -593,7 +579,7 @@ export default function AdminReportsPage() {
           <CardTitle className="text-2xl font-headline flex items-center">
             <BarChartBig className="mr-2 h-6 w-6" /> School Reports
           </CardTitle>
-          <CardDescription>View summaries and reports for school operations. Access report card generation tools. Fee reports are for academic year: {currentAcademicYear}.</CardDescription>
+          <CardDescription>View summaries and reports for school operations. Access report card generation tools. Fee reports are for the current academic year.</CardDescription>
         </CardHeader>
       </Card>
 
@@ -640,11 +626,7 @@ export default function AdminReportsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex-grow">
-              <Label htmlFor="bulk-academic-year">Academic Year</Label>
-              <Input id="bulk-academic-year" value={academicYearForBulkPublish} onChange={(e) => setAcademicYearForBulkPublish(e.target.value)} placeholder="YYYY-YYYY" disabled={isLoadingBulkReports || isBulkPublishing}/>
-            </div>
-            <Button onClick={handleLoadReportsForBulkPublish} disabled={isLoadingBulkReports || isBulkPublishing || !selectedClassForBulkPublish || !academicYearForBulkPublish.match(/^\d{4}-\d{4}$/)}>
+            <Button onClick={handleLoadReportsForBulkPublish} disabled={isLoadingBulkReports || isBulkPublishing || !selectedClassForBulkPublish}>
               {isLoadingBulkReports ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Users className="mr-2 h-4 w-4"/>} Load Student Status
             </Button>
           </div>
@@ -701,7 +683,7 @@ export default function AdminReportsPage() {
           )}
            {isLoadingBulkReports && <div className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/> Loading student report statuses...</div>}
            {!isLoadingBulkReports && reportsForBulkPublish.length === 0 && selectedClassForBulkPublish && (
-                <p className="text-center text-muted-foreground py-4">No students found for the selected class and year.</p>
+                <p className="text-center text-muted-foreground py-4">No students found for the selected class.</p>
             )}
         </CardContent>
       </Card>
@@ -845,7 +827,7 @@ export default function AdminReportsPage() {
       <Card>
         <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                 <CardTitle>Fee Collection Summary Report (Annual Tuition - {currentAcademicYear})</CardTitle>
+                 <CardTitle>Fee Collection Summary Report</CardTitle>
                  <Button
                     variant="outline"
                     onClick={handleDownloadFeePdf}
@@ -870,7 +852,7 @@ export default function AdminReportsPage() {
                 <div id="feeReportContent" className="p-4 bg-card rounded-md">
                 <Card className="mb-6 bg-secondary/30">
                     <CardHeader>
-                        <CardTitle className="text-lg">Overall School Fee Summary - {schoolDetails?.schoolName || 'School'} ({currentAcademicYear})</CardTitle>
+                        <CardTitle className="text-lg">Overall School Fee Summary - {schoolDetails?.schoolName || 'School'}</CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
                         <div>
@@ -936,7 +918,7 @@ export default function AdminReportsPage() {
                     <p className="text-muted-foreground">
                         {(!allSchoolStudents.length) ? "No students found for this school. Please add students." :
                          (!schoolDetails) ? "School fee structure not loaded. Cannot calculate fee summaries." :
-                         (!allSchoolPayments.length && !allSchoolConcessions.length && schoolDetails && allSchoolStudents.length > 0) ? "No fee payments or concessions have been recorded for this school year yet." :
+                         (!allSchoolPayments.length && !allSchoolConcessions.length && schoolDetails && allSchoolStudents.length > 0) ? "No fee payments or concessions have been recorded yet." :
                          "Fee data is currently unavailable."
                         }
                     </p>
@@ -947,4 +929,3 @@ export default function AdminReportsPage() {
     </div>
   );
 }
-

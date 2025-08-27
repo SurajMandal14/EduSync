@@ -29,7 +29,6 @@ const reportCardSASubjectEntrySchemaForSave = z.object({
 const reportCardDataSchemaForSave = z.object({
   studentId: z.string().min(1, "Student ID is required."),
   schoolId: z.string().min(1, "School ID is required."),
-  academicYear: z.string().min(4, "Academic year is required."),
   reportCardTemplateKey: z.string().min(1, "Report card template key is required."),
   studentInfo: z.any(), 
   formativeAssessments: z.array(z.any()),
@@ -54,12 +53,11 @@ export async function saveReportCard(data: Omit<ReportCardData, '_id' | 'created
     const { db } = await connectToDatabase();
     const reportCardsCollection = db.collection('report_cards');
 
-    const { studentId, schoolId: schoolIdStr, academicYear, reportCardTemplateKey, studentInfo, formativeAssessments, coCurricularAssessments, secondLanguage, summativeAssessments, attendance, finalOverallGrade, generatedByAdminId: adminIdStr, term } = validatedData.data;
+    const { studentId, schoolId: schoolIdStr, reportCardTemplateKey, studentInfo, formativeAssessments, coCurricularAssessments, secondLanguage, summativeAssessments, attendance, finalOverallGrade, generatedByAdminId: adminIdStr, term } = validatedData.data;
     
     const reportBaseData = {
         studentId, 
         schoolId: new ObjectId(schoolIdStr),
-        academicYear,
         reportCardTemplateKey,
         studentInfo,
         formativeAssessments, // This structure from front-end has subjectName, fa1, fa2, fa3, fa4
@@ -77,7 +75,6 @@ export async function saveReportCard(data: Omit<ReportCardData, '_id' | 'created
     const existingReport = await reportCardsCollection.findOne({
         studentId: reportBaseData.studentId,
         schoolId: reportBaseData.schoolId,
-        academicYear: reportBaseData.academicYear,
         ...(reportBaseData.term && { term: reportBaseData.term })
     });
 
@@ -169,7 +166,6 @@ export async function setReportCardPublicationStatus(
 export async function getStudentReportCard(
   studentId: string, 
   schoolId: string, 
-  academicYear: string,
   term?: string, 
   publishedOnly?: boolean 
 ): Promise<GetStudentReportCardResult> {
@@ -179,7 +175,7 @@ export async function getStudentReportCard(
     }
     
     const { db } = await connectToDatabase();
-    const schoolsCollection = db.collection<School>('schools');
+    const schoolsCollection = db.collection('schools');
     const school = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
 
     if (publishedOnly && school && !school.allowStudentsToViewPublishedReports) {
@@ -191,7 +187,6 @@ export async function getStudentReportCard(
     const query: any = {
       studentId: studentId, 
       schoolId: new ObjectId(schoolId),
-      academicYear: academicYear,
     };
     
     if (term) {
@@ -209,7 +204,7 @@ export async function getStudentReportCard(
     if (!reportCardDoc) {
       let message = 'No report card found for the specified criteria.';
       if (publishedOnly) {
-        message = 'Your report card for this academic year has not been published yet or is not available. Please check back later or contact your school.';
+        message = 'Your report card for this academic term has not been published yet or is not available. Please check back later or contact your school.';
       }
       return { success: false, message };
     }
@@ -241,13 +236,10 @@ export interface GetReportCardsForClassResult {
   error?: string;
 }
 
-export async function getReportCardsForClass(schoolId: string, classId: string, academicYear: string): Promise<GetReportCardsForClassResult> {
+export async function getReportCardsForClass(schoolId: string, classId: string): Promise<GetReportCardsForClassResult> {
   try {
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
       return { success: false, message: 'Invalid School or Class ID format.' };
-    }
-    if (!academicYear || !/^\d{4}-\d{4}$/.test(academicYear)) {
-      return { success: false, message: 'Valid Academic Year (YYYY-YYYY) is required.' };
     }
 
     const { db } = await connectToDatabase();
@@ -268,7 +260,6 @@ export async function getReportCardsForClass(schoolId: string, classId: string, 
     const reportDocs = await reportCardsCollection.find({
       schoolId: new ObjectId(schoolId),
       studentId: { $in: studentIds },
-      academicYear: academicYear,
     }).project({ _id: 1, studentId: 1, 'studentInfo.studentName': 1, isPublished: 1, term: 1 }).toArray();
     
     const reportsInfo: BulkPublishReportInfo[] = studentsInClass.map(student => {
@@ -301,13 +292,10 @@ export interface SetReportPublicationStatusForClassResult {
   error?: string;
 }
 
-export async function setReportPublicationStatusForClass(schoolId: string, classId: string, academicYear: string, isPublished: boolean): Promise<SetReportPublicationStatusForClassResult> {
+export async function setReportPublicationStatusForClass(schoolId: string, classId: string, isPublished: boolean): Promise<SetReportPublicationStatusForClassResult> {
   try {
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
       return { success: false, updatedCount: 0, message: 'Invalid School or Class ID format.' };
-    }
-     if (!academicYear || !/^\d{4}-\d{4}$/.test(academicYear)) {
-      return { success: false, updatedCount: 0, message: 'Valid Academic Year (YYYY-YYYY) is required.' };
     }
     
     const { db } = await connectToDatabase();
@@ -329,7 +317,6 @@ export async function setReportPublicationStatusForClass(schoolId: string, class
       { 
         schoolId: new ObjectId(schoolId), 
         studentId: { $in: studentIds },
-        academicYear: academicYear,
       },
       { $set: { isPublished: isPublished, updatedAt: new Date() } }
     );
@@ -355,7 +342,7 @@ export interface BulkGenerateAndPublishResult {
 }
 
 // NEW ACTION
-export async function generateAndPublishReportsForClass(schoolId: string, classId: string, academicYear: string, adminId: string, isPublished: boolean): Promise<BulkGenerateAndPublishResult> {
+export async function generateAndPublishReportsForClass(schoolId: string, classId: string, adminId: string, isPublished: boolean): Promise<BulkGenerateAndPublishResult> {
   try {
     const { db } = await connectToDatabase();
 
@@ -377,7 +364,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     for (const student of students) {
       if (!student._id || !student.name) continue;
       
-      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, academicYear, classId, 'Annual');
+      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, classId, 'Annual');
       if (!studentMarksRes.success) {
         console.warn(`Skipping student ${student.name} due to mark fetching error: ${studentMarksRes.message}`);
         continue;
@@ -442,7 +429,6 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
       const reportPayload: Omit<ReportCardData, '_id'> = {
         studentId: student._id.toString(),
         schoolId: new ObjectId(schoolId),
-        academicYear,
         reportCardTemplateKey: 'cbse_state',
         studentInfo: {
           studentName: student.name,
@@ -472,7 +458,6 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
           filter: {
             studentId: student._id.toString(),
             schoolId: new ObjectId(schoolId),
-            academicYear: academicYear,
             term: 'Annual',
           },
           update: { $set: reportPayload },

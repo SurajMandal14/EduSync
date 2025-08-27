@@ -19,7 +19,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     const {
       classId, className, subjectId, subjectName,
-      academicYear, markedByTeacherId, schoolId, studentMarks
+      markedByTeacherId, schoolId, studentMarks
     } = validatedPayloadStructure.data;
 
     const { db } = await connectToDatabase();
@@ -46,7 +46,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         subjectId: subjectId,
         subjectName: subjectName,
         assessmentName: sm.assessmentName,
-        academicYear: academicYear,
         marksObtained: sm.marksObtained,
         maxMarks: sm.maxMarks,
         markedByTeacherId: new ObjectId(markedByTeacherId),
@@ -60,7 +59,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
             classId: markFieldsToSet.classId,
             subjectId: markFieldsToSet.subjectId,
             assessmentName: markFieldsToSet.assessmentName,
-            academicYear: markFieldsToSet.academicYear,
             schoolId: markFieldsToSet.schoolId,
           },
           update: {
@@ -77,7 +75,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
               classId: markFieldsToSet.classId,
               subjectId: markFieldsToSet.subjectId,
               assessmentName: markFieldsToSet.assessmentName,
-              academicYear: markFieldsToSet.academicYear,
               schoolId: markFieldsToSet.schoolId,
               markedByTeacherId: markFieldsToSet.markedByTeacherId,
               createdAt: new Date(),
@@ -116,8 +113,7 @@ export async function getMarksForAssessment(
   schoolId: string,
   classId: string,
   subjectNameParam: string,
-  assessmentNameBase: string,
-  academicYear: string
+  assessmentNameBase: string
 ): Promise<GetMarksResult> {
   try {
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
@@ -143,7 +139,6 @@ export async function getMarksForAssessment(
       classId: classId,
       subjectId: subjectNameParam,
       assessmentName: queryAssessmentFilter,
-      academicYear: academicYear,
     }).toArray();
 
     const marksWithStrId = marks.map(mark => ({
@@ -259,7 +254,7 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string)
     }
 }
 
-export async function getStudentMarksForReportCard(studentId: string, schoolId: string, academicYear: string, classId: string, term?: string): Promise<GetMarksResult> {
+export async function getStudentMarksForReportCard(studentId: string, schoolId: string, classId: string, term?: string): Promise<GetMarksResult> {
   try {
     if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
       return { success: false, message: 'Invalid Student, School, or Class ID format.', error: 'Invalid ID format.' };
@@ -272,7 +267,6 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
       studentId: new ObjectId(studentId),
       schoolId: new ObjectId(schoolId),
       classId: classId,
-      academicYear: academicYear,
     };
     
     // If a term is provided, filter marks by assessment names relevant to that term.
@@ -305,18 +299,18 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
   }
 }
 
-export interface AvailableYearsAndTerms {
+export interface AvailableTerms {
   [year: string]: string[];
 }
-export interface GetAvailableYearsAndTermsResult {
+export interface GetAvailableTermsResult {
   success: boolean;
-  data?: AvailableYearsAndTerms;
+  data?: string[];
   message?: string;
   error?: string;
 }
 
 // New action to get available academic years and terms for a student
-export async function getAvailableYearsAndTermsForStudent(studentId: string, schoolId: string): Promise<GetAvailableYearsAndTermsResult> {
+export async function getAvailableTermsForStudent(studentId: string, schoolId: string): Promise<GetAvailableTermsResult> {
   try {
     if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId)) {
       return { success: false, message: 'Invalid Student or School ID format.' };
@@ -324,35 +318,14 @@ export async function getAvailableYearsAndTermsForStudent(studentId: string, sch
 
     const { db } = await connectToDatabase();
     
-    const results = await db.collection('marks').aggregate([
-      { $match: { studentId: new ObjectId(studentId), schoolId: new ObjectId(schoolId) } },
-      {
-        $group: {
-          _id: {
-            academicYear: '$academicYear',
-            assessmentName: '$assessmentName'
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          academicYear: '$_id.academicYear',
-          assessmentName: '$_id.assessmentName'
-        }
-      }
-    ]).toArray();
+    const results = await db.collection('marks').distinct('assessmentName', {
+        studentId: new ObjectId(studentId),
+        schoolId: new ObjectId(schoolId)
+    });
     
-    const availableData: AvailableYearsAndTerms = {};
+    const availableData: string[] = [];
     
-    results.forEach(item => {
-      const year = item.academicYear;
-      const assessment = item.assessmentName;
-      
-      if (!availableData[year]) {
-        availableData[year] = [];
-      }
-      
+    results.forEach(assessment => {
       let term: string | null = null;
       if (assessment && (assessment.startsWith('FA') || assessment.startsWith('SA'))) {
         term = 'Annual'; // Group all CBSE marks under one term
@@ -360,18 +333,15 @@ export async function getAvailableYearsAndTermsForStudent(studentId: string, sch
         term = assessment;
       }
 
-      if (term && !availableData[year].includes(term)) {
-        availableData[year].push(term);
+      if (term && !availableData.includes(term)) {
+        availableData.push(term);
       }
     });
 
     return { success: true, data: availableData };
 
   } catch (error) {
-    console.error('Error fetching available years and terms:', error);
+    console.error('Error fetching available terms:', error);
     return { success: false, message: 'Failed to fetch available academic terms.', error: String(error) };
   }
 }
-
-
-    
