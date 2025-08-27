@@ -354,9 +354,9 @@ export async function getAvailableYearsAndTermsForStudent(studentId: string, sch
       }
       
       let term: string | null = null;
-      if (assessment.startsWith('FA') || assessment.startsWith('SA')) {
+      if (assessment && (assessment.startsWith('FA') || assessment.startsWith('SA'))) {
         term = 'Annual'; // Group all CBSE marks under one term
-      } else if (['Term 1', 'Term 2', 'Term 3', 'Final Exam'].includes(assessment)) {
+      } else if (assessment && ['Term 1', 'Term 2', 'Term 3', 'Final Exam'].includes(assessment)) {
         term = assessment;
       }
 
@@ -373,3 +373,5 @@ export async function getAvailableYearsAndTermsForStudent(studentId: string, sch
   }
 }
 
+
+    
