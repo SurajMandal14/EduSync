@@ -299,9 +299,6 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
   }
 }
 
-export interface AvailableTerms {
-  [year: string]: string[];
-}
 export interface GetAvailableTermsResult {
   success: boolean;
   data?: string[];

@@ -15,18 +15,7 @@ import CBSEStateFront, {
 import CBSEStateBack from '@/components/report-cards/CBSEStateBack';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { getAvailableYearsAndTermsForStudent, type AvailableYearsAndTerms } from '@/app/actions/marks';
-
-const getCurrentAcademicYear = (): string => {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  if (currentMonth >= 5) { 
-    return `${currentYear}-${currentYear + 1}`;
-  } else {
-    return `${currentYear - 1}-${currentYear}`;
-  }
-};
+import { getAvailableTermsForStudent } from '@/app/actions/marks';
 
 
 export default function StudentResultsPage() {
@@ -36,8 +25,7 @@ export default function StudentResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [availableYearsAndTerms, setAvailableYearsAndTerms] = useState<AvailableYearsAndTerms | null>(null);
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(getCurrentAcademicYear());
+  const [availableTerms, setAvailableTerms] = useState<string[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>("");
 
   const [showBackSide, setShowBackSide] = useState(false);
@@ -66,23 +54,16 @@ export default function StudentResultsPage() {
     }
   }, []);
 
-  // Effect to fetch available years and terms once the user is authenticated
+  // Effect to fetch available terms once the user is authenticated
   useEffect(() => {
     if (!authUser) return;
 
     async function fetchAvailableYears() {
       setIsLoading(true);
-      const res = await getAvailableYearsAndTermsForStudent(authUser._id!, authUser.schoolId!);
-      if (res.success && res.data && Object.keys(res.data).length > 0) {
-        setAvailableYearsAndTerms(res.data);
-        const latestYear = Object.keys(res.data).sort().reverse()[0];
-        setSelectedAcademicYear(latestYear); // Set to the latest available year
-        if (res.data[latestYear] && res.data[latestYear][0]) {
-          setSelectedTerm(res.data[latestYear][0]); // Auto-select the first term of the latest year
-        } else {
-          setError("No terms found for the most recent academic year.");
-          setIsLoading(false);
-        }
+      const res = await getAvailableTermsForStudent(authUser._id!, authUser.schoolId!);
+      if (res.success && res.data && res.data.length > 0) {
+        setAvailableTerms(res.data);
+        setSelectedTerm(res.data[0]); // Auto-select the first available term
       } else {
         setError("No academic history found. Cannot display report cards.");
         setIsLoading(false);
@@ -94,9 +75,8 @@ export default function StudentResultsPage() {
 
   // Effect to fetch the report card when user or selections change
   const fetchReport = useCallback(async () => {
-    if (!authUser || !selectedAcademicYear || !selectedTerm) {
+    if (!authUser || !selectedTerm) {
       setReportCardData(null);
-      // Don't set loading to false here, as the previous effect might still be running
       return;
     }
     
@@ -105,12 +85,12 @@ export default function StudentResultsPage() {
     setReportCardData(null);
 
     try {
-      const result = await getStudentReportCard(authUser._id, authUser.schoolId!, selectedAcademicYear, selectedTerm, true); 
+      const result = await getStudentReportCard(authUser._id, authUser.schoolId!, selectedTerm, true); 
       if (result.success && result.reportCard) {
         setReportCardData(result.reportCard);
       } else {
         setReportCardData(null);
-        setError(result.message || "Failed to load report card.");
+        setError(result.message || "Failed to load report card for the selected term.");
       }
     } catch (e) {
       console.error("Fetch report error:", e);
@@ -119,14 +99,13 @@ export default function StudentResultsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [authUser, selectedAcademicYear, selectedTerm]);
+  }, [authUser, selectedTerm]);
 
   useEffect(() => {
-    // Only fetch if we have a user and have successfully determined a term to fetch
     if(authUser && selectedTerm) {
       fetchReport();
     }
-  }, [authUser, selectedTerm, fetchReport]); // depends on selectedTerm now
+  }, [authUser, selectedTerm, fetchReport]);
 
   const handlePrint = () => {
     if (typeof window !== "undefined") {
@@ -143,7 +122,7 @@ export default function StudentResultsPage() {
     }, {} as Record<string, FrontSubjectFAData>),
     coMarks: reportCardData.coCurricularAssessments,
     secondLanguage: reportCardData.secondLanguage || 'Hindi', 
-    academicYear: reportCardData.academicYear,
+    academicYear: "", 
     onStudentDataChange: () => {},
     onFaMarksChange: () => {},
     onCoMarksChange: () => {},
@@ -166,70 +145,6 @@ export default function StudentResultsPage() {
     editableSubjects: [],
   } : null;
 
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex justify-center items-center p-10">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="ml-4 text-lg">Loading report card status...</p>
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-         <Card className="no-print border-destructive">
-            <CardHeader className="flex-row items-center gap-2">
-                <AlertTriangle className="h-6 w-6 text-destructive"/>
-                <CardTitle className="text-destructive">Report Not Available</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p>{error}</p>
-            </CardContent>
-         </Card>
-      );
-    }
-    
-    if (!reportCardData) {
-      return (
-        <Card className="no-print">
-          <CardContent className="p-10 text-center">
-            <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-semibold">No Report Card Found</p>
-            <p className="text-muted-foreground">
-              Your report card for the selected criteria is not yet published or does not exist.
-            </p>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    if (reportCardData && frontProps && backProps) {
-        return (
-        <>
-          <div className="flex justify-end gap-2 no-print mb-4">
-             <Button onClick={() => setShowBackSide(prev => !prev)} variant="outline">
-                {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                {showBackSide ? "View Front" : "View Back"}
-            </Button>
-            <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
-          </div>
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden' : ''}`}>
-            <CBSEStateFront {...frontProps} />
-          </div>
-          
-          {showBackSide && <div className="page-break no-print"></div>}
-
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden' : ''}`}>
-            <CBSEStateBack {...backProps} />
-          </div>
-        </>
-      );
-    }
-
-    return null;
-  }
-
   return (
     <div className="space-y-6">
        <style jsx global>{`
@@ -249,7 +164,8 @@ export default function StudentResultsPage() {
           .no-print { display: none !important; }
            .page-break { page-break-after: always; }
         }
-      `}</style>
+      `}
+      </style>
       <Card className="no-print">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
@@ -260,29 +176,71 @@ export default function StudentResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="w-full sm:w-auto">
-              <Label htmlFor="academicYearSelect">Select Academic Year</Label>
-              <Select value={selectedAcademicYear} onValueChange={setSelectedAcademicYear} disabled={isLoading || !availableYearsAndTerms}>
-                  <SelectTrigger id="academicYearSelect" className="max-w-xs"><SelectValue placeholder="Select Year" /></SelectTrigger>
-                  <SelectContent>{availableYearsAndTerms && Object.keys(availableYearsAndTerms).map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
              <div className="w-full sm:w-auto">
                 <Label htmlFor="termSelect">Select Term</Label>
-                <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoading || !availableYearsAndTerms || !(availableYearsAndTerms[selectedAcademicYear]?.length > 0)}>
-                    <SelectTrigger id="termSelect" className="max-w-xs"><SelectValue placeholder="Select Term" /></SelectTrigger>
-                    <SelectContent>{availableYearsAndTerms && (availableYearsAndTerms[selectedAcademicYear] || []).map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
+                <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoading || availableTerms.length === 0}>
+                    <SelectTrigger id="termSelect" className="max-w-xs"><SelectValue placeholder={availableTerms.length === 0 ? "No terms found" : "Select Term"} /></SelectTrigger>
+                    <SelectContent>{availableTerms.map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
                 </Select>
             </div>
-            <Button onClick={fetchReport} disabled={isLoading || !selectedAcademicYear.match(/^\d{4}-\d{4}$/) || !selectedTerm}>
+            <Button onClick={fetchReport} disabled={isLoading || !selectedTerm}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
                 Fetch Report
             </Button>
         </CardContent>
       </Card>
       
-      {renderContent()}
+      {isLoading && (
+        <div className="flex justify-center items-center p-10">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="ml-4 text-lg">Loading report card...</p>
+        </div>
+      )}
 
+      {!isLoading && error && (
+         <Card className="no-print border-destructive">
+            <CardHeader className="flex-row items-center gap-2">
+                <AlertTriangle className="h-6 w-6 text-destructive"/>
+                <CardTitle className="text-destructive">Report Not Available</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>{error}</p>
+            </CardContent>
+         </Card>
+      )}
+
+      {!isLoading && !error && !reportCardData && (
+        <Card className="no-print">
+          <CardContent className="p-10 text-center">
+            <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-semibold">No Report Card Found</p>
+            <p className="text-muted-foreground">
+              Your report card for the selected term is not yet published or does not exist.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && reportCardData && frontProps && backProps && (
+        <>
+          <div className="flex justify-end gap-2 no-print mb-4">
+             <Button onClick={() => setShowBackSide(prev => !prev)} variant="outline">
+                {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                {showBackSide ? "View Front" : "View Back"}
+            </Button>
+            <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
+          </div>
+          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden' : ''}`}>
+            <CBSEStateFront {...frontProps} />
+          </div>
+          
+          {showBackSide && <div className="page-break no-print"></div>}
+
+          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden' : ''}`}>
+            <CBSEStateBack {...backProps} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
