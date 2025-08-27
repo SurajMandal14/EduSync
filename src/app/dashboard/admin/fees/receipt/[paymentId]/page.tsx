@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import { getPaymentById } from '@/app/actions/fees';
 import { getSchoolById } from '@/app/actions/schools'; 
 import type { FeePayment } from '@/types/fees';
@@ -13,8 +13,9 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
 import { format } from 'date-fns';
 
-export default function FeeReceiptPage() {
+function ReceiptComponent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const paymentId = params.paymentId as string;
   
   const [payment, setPayment] = useState<FeePayment | null>(null);
@@ -22,15 +23,8 @@ export default function FeeReceiptPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const searchParams = useMemo(() => {
-      if (typeof window !== "undefined") {
-          return new URLSearchParams(window.location.search);
-      }
-      return null;
-  }, []);
-
-  const studentNameQuery = searchParams?.get('studentName');
-  const classNameQuery = searchParams?.get('className');
+  const studentNameQuery = searchParams.get('studentName');
+  const classNameQuery = searchParams.get('className');
 
   const fetchReceiptData = useCallback(async () => {
     if (!paymentId) {
@@ -182,5 +176,13 @@ export default function FeeReceiptPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+export default function FeeReceiptPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ReceiptComponent />
+    </Suspense>
   );
 }
