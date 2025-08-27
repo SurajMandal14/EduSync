@@ -58,7 +58,6 @@ export default function SuperAdminConcessionManagementPage() {
   const [concessionToRevoke, setConcessionToRevoke] = useState<FeeConcession | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
   
-  const [academicYearFilter, setAcademicYearFilter] = useState<string>(`${new Date().getFullYear()}-${new Date().getFullYear() + 1}`);
   const [showAddForm, setShowAddForm] = useState(false);
 
 
@@ -67,7 +66,6 @@ export default function SuperAdminConcessionManagementPage() {
     defaultValues: {
       studentId: "",
       schoolId: "",
-      academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
       concessionType: undefined,
       amount: 0,
       reason: "",
@@ -118,13 +116,13 @@ export default function SuperAdminConcessionManagementPage() {
     setIsLoadingStudents(false);
   }, [toast, form]);
 
-  const fetchConcessionsForSchool = useCallback(async (schoolId: string, year?: string) => {
+  const fetchConcessionsForSchool = useCallback(async (schoolId: string) => {
     if (!schoolId) {
       setConcessions([]);
       return;
     }
     setIsLoadingConcessions(true);
-    const concessionsResult = await getFeeConcessionsForSchool(schoolId, year);
+    const concessionsResult = await getFeeConcessionsForSchool(schoolId);
     if (concessionsResult.success && concessionsResult.concessions) {
       setConcessions(concessionsResult.concessions);
     } else {
@@ -137,7 +135,7 @@ export default function SuperAdminConcessionManagementPage() {
   useEffect(() => {
     if (selectedSchoolId) {
       fetchStudentsForSchool(selectedSchoolId);
-      fetchConcessionsForSchool(selectedSchoolId, academicYearFilter);
+      fetchConcessionsForSchool(selectedSchoolId);
       form.setValue("schoolId", selectedSchoolId);
     } else {
       setStudentsInSchool([]);
@@ -145,7 +143,7 @@ export default function SuperAdminConcessionManagementPage() {
       form.resetField("studentId");
       form.resetField("schoolId");
     }
-  }, [selectedSchoolId, academicYearFilter, fetchStudentsForSchool, fetchConcessionsForSchool, form]);
+  }, [selectedSchoolId, fetchStudentsForSchool, fetchConcessionsForSchool, form]);
 
   async function onSubmit(values: FeeConcessionFormData) {
     if (!authUser?._id) {
@@ -159,7 +157,7 @@ export default function SuperAdminConcessionManagementPage() {
       toast({ title: "Concession Applied", description: result.message });
       form.reset({ ...form.getValues(), studentId: "", amount: 0, reason: "", concessionType: undefined });
       setShowAddForm(false);
-      if (selectedSchoolId) fetchConcessionsForSchool(selectedSchoolId, academicYearFilter);
+      if (selectedSchoolId) fetchConcessionsForSchool(selectedSchoolId);
     } else {
       toast({ variant: "destructive", title: "Application Failed", description: result.error || result.message });
     }
@@ -172,7 +170,7 @@ export default function SuperAdminConcessionManagementPage() {
     setIsRevoking(false);
     if (result.success) {
       toast({ title: "Concession Revoked", description: result.message });
-      if (selectedSchoolId) fetchConcessionsForSchool(selectedSchoolId, academicYearFilter);
+      if (selectedSchoolId) fetchConcessionsForSchool(selectedSchoolId);
     } else {
       toast({ variant: "destructive", title: "Revocation Failed", description: result.error || result.message });
     }
@@ -184,7 +182,6 @@ export default function SuperAdminConcessionManagementPage() {
     form.reset({
       studentId: "",
       schoolId: selectedSchoolId,
-      academicYear: academicYearFilter,
       concessionType: undefined,
       amount: 0,
       reason: "",
@@ -270,13 +267,6 @@ export default function SuperAdminConcessionManagementPage() {
                         </FormItem>
                     )}
                     />
-                    <FormField control={form.control} name="academicYear" render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="flex items-center"><CalendarFold className="mr-2 h-4 w-4 text-muted-foreground"/>Academic Year</FormLabel>
-                        <FormControl><Input placeholder="e.g., 2023-2024" {...field} disabled={isSubmitting} /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}/>
                     <FormField control={form.control} name="concessionType" render={({ field }) => (
                     <FormItem>
                         <FormLabel>Concession Type</FormLabel>
@@ -326,20 +316,6 @@ export default function SuperAdminConcessionManagementPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Existing Fee Concessions</CardTitle>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Label htmlFor="academicYearFilter" className="whitespace-nowrap">Filter Year:</Label>
-              <Input 
-                id="academicYearFilter"
-                placeholder="e.g., 2023-2024" 
-                className="w-full sm:w-[180px]" 
-                value={academicYearFilter}
-                onChange={(e) => setAcademicYearFilter(e.target.value)}
-                disabled={isLoadingConcessions || !selectedSchoolId}
-              />
-               <Button variant="outline" size="icon" onClick={() => fetchConcessionsForSchool(selectedSchoolId, academicYearFilter)} disabled={isLoadingConcessions || !selectedSchoolId}>
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
            {!selectedSchoolId && <CardDescription className="text-sm text-muted-foreground">Select a school above to view its concessions.</CardDescription>}
         </CardHeader>
@@ -354,7 +330,6 @@ export default function SuperAdminConcessionManagementPage() {
               <TableRow>
                 <TableHead>Student</TableHead>
                 <TableHead>School</TableHead>
-                <TableHead>Academic Year</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Amount (<span className="font-sans">₹</span>)</TableHead>
                 <TableHead>Reason</TableHead>
@@ -368,7 +343,6 @@ export default function SuperAdminConcessionManagementPage() {
                 <TableRow key={con._id.toString()}>
                   <TableCell>{con.studentName || 'N/A'}</TableCell>
                   <TableCell>{con.schoolName || 'N/A'}</TableCell>
-                  <TableCell>{con.academicYear}</TableCell>
                   <TableCell>{con.concessionType}</TableCell>
                   <TableCell className="text-right"><span className="font-sans">₹</span>{con.amount.toLocaleString()}</TableCell>
                   <TableCell className="max-w-xs truncate" title={con.reason}>{con.reason}</TableCell>
@@ -403,7 +377,7 @@ export default function SuperAdminConcessionManagementPage() {
             </TableBody>
           </Table>
           ) : (
-             <p className="text-center text-muted-foreground py-4">No concessions found for the selected school and academic year.</p>
+             <p className="text-center text-muted-foreground py-4">No concessions found for the selected school.</p>
           )}
         </CardContent>
       </Card>

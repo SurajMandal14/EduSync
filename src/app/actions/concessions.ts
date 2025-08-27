@@ -18,7 +18,7 @@ export async function applyFeeConcession(payload: FeeConcessionFormData, superAd
       return { success: false, message: 'Validation failed.', error: errors };
     }
 
-    const { studentId, schoolId, academicYear, concessionType, amount, reason } = validatedPayload.data;
+    const { studentId, schoolId, concessionType, amount, reason } = validatedPayload.data;
 
     if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId) || !ObjectId.isValid(superAdminId)) {
       return { success: false, message: 'Invalid ID format for student, school, or admin.' };
@@ -47,7 +47,6 @@ export async function applyFeeConcession(payload: FeeConcessionFormData, superAd
     const newConcessionDoc = {
       studentId: new ObjectId(studentId),
       schoolId: new ObjectId(schoolId),
-      academicYear,
       concessionType,
       amount,
       reason,
@@ -94,7 +93,7 @@ export async function applyFeeConcession(payload: FeeConcessionFormData, superAd
   }
 }
 
-export async function getFeeConcessionsForSchool(schoolId: string, academicYear?: string): Promise<GetFeeConcessionsResult> {
+export async function getFeeConcessionsForSchool(schoolId: string): Promise<GetFeeConcessionsResult> {
   try {
     if (!ObjectId.isValid(schoolId)) {
       return { success: false, message: 'Invalid School ID format.' };
@@ -102,10 +101,7 @@ export async function getFeeConcessionsForSchool(schoolId: string, academicYear?
 
     const { db } = await connectToDatabase();
     const filter: any = { schoolId: new ObjectId(schoolId) };
-    if (academicYear && /^\d{4}-\d{4}$/.test(academicYear)) {
-      filter.academicYear = academicYear;
-    }
-
+    
     const concessions = await db.collection('fee_concessions').aggregate([
       { $match: filter },
       {
@@ -137,7 +133,7 @@ export async function getFeeConcessionsForSchool(schoolId: string, academicYear?
       { $unwind: { path: '$adminInfo', preserveNullAndEmptyArrays: true } },
       {
         $project: {
-          _id: 1, studentId: 1, schoolId: 1, academicYear: 1, concessionType: 1, amount: 1, reason: 1,
+          _id: 1, studentId: 1, schoolId: 1, concessionType: 1, amount: 1, reason: 1,
           appliedBySuperAdminId: 1, createdAt: 1, updatedAt: 1,
           studentName: '$studentInfo.name',
           schoolName: '$schoolInfo.schoolName',
@@ -151,7 +147,6 @@ export async function getFeeConcessionsForSchool(schoolId: string, academicYear?
       _id: (doc._id as ObjectId).toString(),
       studentId: (doc.studentId as ObjectId).toString(),
       schoolId: (doc.schoolId as ObjectId).toString(),
-      academicYear: doc.academicYear,
       concessionType: doc.concessionType,
       amount: doc.amount,
       reason: doc.reason,
@@ -171,28 +166,23 @@ export async function getFeeConcessionsForSchool(schoolId: string, academicYear?
   }
 }
 
-export async function getFeeConcessionsForStudent(studentId: string, schoolId: string, academicYear: string): Promise<GetFeeConcessionsResult> {
+export async function getFeeConcessionsForStudent(studentId: string, schoolId: string): Promise<GetFeeConcessionsResult> {
    try {
     if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId)) {
       return { success: false, message: 'Invalid Student or School ID format.' };
     }
-     if (!academicYear || !/^\d{4}-\d{4}$/.test(academicYear)) {
-        return { success: false, message: 'Valid Academic Year is required.' };
-    }
-
+    
     const { db } = await connectToDatabase();
     
     const concessions = await db.collection('fee_concessions').find({
         studentId: new ObjectId(studentId),
         schoolId: new ObjectId(schoolId),
-        academicYear: academicYear,
     }).sort({ createdAt: -1 }).toArray();
 
      const clientConcessions: FeeConcession[] = concessions.map(doc => ({
       _id: (doc._id as ObjectId).toString(),
       studentId: (doc.studentId as ObjectId).toString(),
       schoolId: (doc.schoolId as ObjectId).toString(),
-      academicYear: doc.academicYear,
       concessionType: doc.concessionType as FeeConcessionType,
       amount: doc.amount,
       reason: doc.reason,

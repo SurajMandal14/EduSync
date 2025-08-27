@@ -8,7 +8,7 @@ import type { StudentData as FrontStudentData, MarksEntry as FrontMarksEntryType
 export interface FormativeAssessmentEntryForStorage {
   subjectName: string;
   fa1: FrontMarksEntryType;
-  fa2: FrontMarksEntryType;
+  fa2: FrontMarksEntry_type;
   fa3: FrontMarksEntryType;
   fa4: FrontMarksEntryType;
 }
@@ -39,7 +39,6 @@ export interface ReportCardData {
   _id?: ObjectId | string;
   studentId: string; // Reference to the User._id of the student
   schoolId: ObjectId | string; // Reference to the School._id
-  academicYear: string; // e.g., "2023-2024"
   reportCardTemplateKey: ReportCardTemplateKey; // e.g., 'cbse_state'
   
   studentInfo: FrontStudentData;
