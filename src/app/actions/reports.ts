@@ -78,8 +78,7 @@ export async function saveReportCard(data: Omit<ReportCardData, '_id' | 'created
         studentId: reportBaseData.studentId,
         schoolId: reportBaseData.schoolId,
         academicYear: reportBaseData.academicYear,
-        reportCardTemplateKey: reportBaseData.reportCardTemplateKey,
-        term: reportBaseData.term 
+        ...(reportBaseData.term && { term: reportBaseData.term })
     });
 
     if (existingReport) {
@@ -178,29 +177,25 @@ export async function getStudentReportCard(
     if (!ObjectId.isValid(schoolId)) { 
       return { success: false, message: 'Invalid school ID format.' };
     }
+    
+    const { db } = await connectToDatabase();
+    const schoolsCollection = db.collection<School>('schools');
+    const school = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
 
-    if (publishedOnly) {
-      const schoolResult = await getSchoolById(schoolId);
-      if (!schoolResult.success || !schoolResult.school) {
-        return { success: false, message: 'Could not verify school settings. Please try again later.' };
-      }
-      if (!schoolResult.school.allowStudentsToViewPublishedReports) {
-        return { success: false, message: 'Report card viewing is currently disabled by the school administration for this academic year.' };
-      }
+    if (publishedOnly && school && !school.allowStudentsToViewPublishedReports) {
+      return { success: false, message: 'Report card viewing is currently disabled by the school administration.' };
     }
 
-    const { db } = await connectToDatabase();
     const reportCardsCollection = db.collection<ReportCardData>('report_cards');
 
     const query: any = {
       studentId: studentId, 
       schoolId: new ObjectId(schoolId),
       academicYear: academicYear,
-      reportCardTemplateKey: 'cbse_state', 
     };
-
+    
     if (term) {
-      query.term = term;
+        query.term = term;
     }
 
     if (publishedOnly) {
@@ -274,8 +269,7 @@ export async function getReportCardsForClass(schoolId: string, classId: string, 
       schoolId: new ObjectId(schoolId),
       studentId: { $in: studentIds },
       academicYear: academicYear,
-      reportCardTemplateKey: 'cbse_state',
-    }).project({ _id: 1, studentId: 1, 'studentInfo.studentName': 1, isPublished: 1 }).toArray();
+    }).project({ _id: 1, studentId: 1, 'studentInfo.studentName': 1, isPublished: 1, term: 1 }).toArray();
     
     const reportsInfo: BulkPublishReportInfo[] = studentsInClass.map(student => {
       const report = reportDocs.find(r => r.studentId === student._id.toString());
@@ -286,6 +280,7 @@ export async function getReportCardsForClass(schoolId: string, classId: string, 
         registrationNo: student.registrationNo || 'N/A',
         isPublished: report ? report.isPublished || false : false,
         hasReport: !!report,
+        term: report?.term || 'N/A'
       };
     }).sort((a, b) => a.studentName.localeCompare(b.studentName));
 
@@ -335,7 +330,6 @@ export async function setReportPublicationStatusForClass(schoolId: string, class
         schoolId: new ObjectId(schoolId), 
         studentId: { $in: studentIds },
         academicYear: academicYear,
-        reportCardTemplateKey: 'cbse_state', 
       },
       { $set: { isPublished: isPublished, updatedAt: new Date() } }
     );
@@ -343,7 +337,7 @@ export async function setReportPublicationStatusForClass(schoolId: string, class
     return { 
       success: true, 
       updatedCount: result.modifiedCount,
-      message: `${result.modifiedCount} report cards ${isPublished ? 'published' : 'unpublished'} successfully for class.`
+      message: `${result.modifiedCount} report cards were ${isPublished ? 'published' : 'unpublished'} successfully for class.`
     };
 
   } catch (error) {
@@ -479,7 +473,6 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
             studentId: student._id.toString(),
             schoolId: new ObjectId(schoolId),
             academicYear: academicYear,
-            reportCardTemplateKey: 'cbse_state',
             term: 'Annual',
           },
           update: { $set: reportPayload },
