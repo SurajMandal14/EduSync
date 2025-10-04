@@ -286,7 +286,6 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           <tbody>
             {saData.map((rowData, rowIndex) => {
                 if (!rowData || typeof rowData !== 'object') {
-                    console.warn(`Invalid rowData at index ${rowIndex}`, rowData);
                     return <tr key={`invalid-row-${rowIndex}`}><td colSpan={15}>Invalid data for this row</td></tr>;
                 }
                 const derived = calculateRowDerivedData(rowData);

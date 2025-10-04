@@ -164,52 +164,55 @@ export async function setReportCardPublicationStatus(
 
 
 export async function getStudentReportCard(
-  studentId: string, 
+  studentId: string,
   schoolId: string
 ): Promise<GetStudentReportCardResult> {
   try {
-    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(studentId)) { 
+    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(studentId)) {
       return { success: false, message: 'Invalid student or school ID format.' };
     }
-    
+
     const { db } = await connectToDatabase();
     const schoolsCollection = db.collection('schools');
     const school = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
 
-    if (school && !school.allowStudentsToViewPublishedReports) {
+    if (!school) {
+      return { success: false, message: 'School details could not be found.' };
+    }
+
+    if (!school.allowStudentsToViewPublishedReports) {
       return { success: false, message: 'Report card viewing is currently disabled by the school administration.' };
     }
 
     const reportCardsCollection = db.collection<ReportCardData>('report_cards');
 
-    // Find the most recently created or updated PUBLISHED report card for the student
     const reportCardDoc = await reportCardsCollection.findOne(
-        {
-          studentId: studentId, 
-          schoolId: new ObjectId(schoolId),
-          isPublished: true,
-        },
-        { sort: { updatedAt: -1 } } // Sort by updatedAt descending to get the latest
+      {
+        studentId: studentId,
+        schoolId: new ObjectId(schoolId),
+        isPublished: true,
+        reportCardTemplateKey: school.reportCardTemplate, // Ensure we only fetch the correct template
+      },
+      { sort: { updatedAt: -1 } } // Get the most recently updated one
     );
 
     if (!reportCardDoc) {
-      return { success: false, message: 'No published report card found for your account.' };
+      return { success: false, message: 'No published report card found for your account that matches the current school configuration.' };
     }
-    
+
     const reportCard: ReportCardData = {
-        ...reportCardDoc,
-        _id: reportCardDoc._id?.toString(),
-        schoolId: reportCardDoc.schoolId.toString(),
-        generatedByAdminId: reportCardDoc.generatedByAdminId?.toString(),
-        isPublished: reportCardDoc.isPublished === undefined ? false : reportCardDoc.isPublished, 
-        createdAt: reportCardDoc.createdAt ? new Date(reportCardDoc.createdAt) : undefined,
-        updatedAt: reportCardDoc.updatedAt ? new Date(reportCardDoc.updatedAt) : undefined,
+      ...reportCardDoc,
+      _id: reportCardDoc._id?.toString(),
+      schoolId: reportCardDoc.schoolId.toString(),
+      generatedByAdminId: reportCardDoc.generatedByAdminId?.toString(),
+      isPublished: reportCardDoc.isPublished === undefined ? false : reportCardDoc.isPublished,
+      createdAt: reportCardDoc.createdAt ? new Date(reportCardDoc.createdAt) : undefined,
+      updatedAt: reportCardDoc.updatedAt ? new Date(reportCardDoc.updatedAt) : undefined,
     };
 
     return { success: true, reportCard };
 
-  } catch (error)
-{
+  } catch (error) {
     console.error('Get student report card error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, error: errorMessage, message: 'Failed to fetch student report card.' };
@@ -370,7 +373,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
           fa3: { tool1: null, tool2: null, tool3: null, tool4: null },
           fa4: { tool1: null, tool2: null, tool3: null, tool4: null },
         };
-        studentMarks.filter(m => m.subjectName === subject.name && m.assessmentName.startsWith('FA')).forEach(m => {
+        studentMarks.filter(m => m.subjectId === subject.name && m.assessmentName.startsWith('FA')).forEach(m => {
           const [, faPeriod, tool] = m.assessmentName.match(/(FA\\d)-(Tool\\d)/) || [];
           if (faPeriod && tool) {
             (faEntry[faPeriod.toLowerCase() as keyof typeof faEntry] as any)[tool.toLowerCase()] = m.marksObtained;
@@ -382,7 +385,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
           sa1: { marks: null, maxMarks: 80 },
           sa2: { marks: null, maxMarks: 80 }
         };
-        studentMarks.filter(m => m.subjectName === subject.name && m.assessmentName.startsWith('SA')).forEach(m => {
+        studentMarks.filter(m => m.subjectId === subject.name && m.assessmentName.startsWith('SA')).forEach(m => {
           if (m.assessmentName.startsWith('SA1')) saScores[subject.name].sa1 = { marks: m.marksObtained, maxMarks: m.maxMarks };
           if (m.assessmentName.startsWith('SA2')) saScores[subject.name].sa2 = { marks: m.marksObtained, maxMarks: m.maxMarks };
         });
