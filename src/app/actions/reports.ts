@@ -165,18 +165,11 @@ export async function setReportCardPublicationStatus(
 
 export async function getStudentReportCard(
   studentId: string, 
-  schoolId: string,
-  term: string
+  schoolId: string
 ): Promise<GetStudentReportCardResult> {
   try {
-    if (!ObjectId.isValid(schoolId)) { 
-      return { success: false, message: 'Invalid school ID format.' };
-    }
-    if (!ObjectId.isValid(studentId)) { 
-      return { success: false, message: 'Invalid student ID format.' };
-    }
-    if (!term) {
-      return { success: false, message: 'Term is required to fetch a report card.'};
+    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(studentId)) { 
+      return { success: false, message: 'Invalid student or school ID format.' };
     }
     
     const { db } = await connectToDatabase();
@@ -189,18 +182,18 @@ export async function getStudentReportCard(
 
     const reportCardsCollection = db.collection<ReportCardData>('report_cards');
 
-    const query: any = {
-      studentId: studentId, 
-      schoolId: new ObjectId(schoolId),
-      term: term,
-      isPublished: true,
-    };
-    
-    const reportCardDoc = await reportCardsCollection.findOne(query);
+    // Find the most recently created or updated PUBLISHED report card for the student
+    const reportCardDoc = await reportCardsCollection.findOne(
+        {
+          studentId: studentId, 
+          schoolId: new ObjectId(schoolId),
+          isPublished: true,
+        },
+        { sort: { updatedAt: -1 } } // Sort by updatedAt descending to get the latest
+    );
 
     if (!reportCardDoc) {
-      let message = 'No published report card found for the specified term.';
-      return { success: false, message };
+      return { success: false, message: 'No published report card found for your account.' };
     }
     
     const reportCard: ReportCardData = {
@@ -378,7 +371,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
           fa4: { tool1: null, tool2: null, tool3: null, tool4: null },
         };
         studentMarks.filter(m => m.subjectName === subject.name && m.assessmentName.startsWith('FA')).forEach(m => {
-          const [, faPeriod, tool] = m.assessmentName.match(/(FA\d)-(Tool\d)/) || [];
+          const [, faPeriod, tool] = m.assessmentName.match(/(FA\\d)-(Tool\\d)/) || [];
           if (faPeriod && tool) {
             (faEntry[faPeriod.toLowerCase() as keyof typeof faEntry] as any)[tool.toLowerCase()] = m.marksObtained;
           }
