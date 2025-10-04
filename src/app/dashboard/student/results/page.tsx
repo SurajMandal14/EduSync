@@ -14,6 +14,8 @@ import CBSEStateFront, {
 } from '@/components/report-cards/CBSEStateFront';
 import CBSEStateBack from '@/components/report-cards/CBSEStateBack';
 import { getAvailableTermsForStudent } from '@/app/actions/marks';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 
 function StudentResultsPage() {
   const { toast } = useToast();
@@ -27,8 +29,8 @@ function StudentResultsPage() {
 
   const [showBackSide, setShowBackSide] = useState(false);
 
-  const fetchReport = useCallback(async (user: AuthUser, term: string) => {
-    if (!user || !term) {
+  const fetchReport = useCallback(async (user: AuthUser) => {
+    if (!user) {
       setReportCardData(null);
       return;
     }
@@ -40,12 +42,8 @@ function StudentResultsPage() {
     try {
       const result = await getStudentReportCard(user._id, user.schoolId!);
       if (result.success && result.reportCard) {
-        if (result.reportCard.term === term) {
-          setReportCardData(result.reportCard);
-        } else {
-            setReportCardData(null);
-            setError("A report card was found, but not for the selected term. It may not be published yet.");
-        }
+        // Since term is removed, we just load the first/only report card found.
+        setReportCardData(result.reportCard);
       } else {
         setReportCardData(null);
         setError(result.message || "Failed to load report card.");
@@ -67,16 +65,8 @@ function StudentResultsPage() {
         const parsedUser: AuthUser = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'student' && parsedUser._id && parsedUser.schoolId) {
           setAuthUser(parsedUser);
-          const termsRes = await getAvailableTermsForStudent(parsedUser._id, parsedUser.schoolId);
-          if (termsRes.success && termsRes.data && termsRes.data.length > 0) {
-            setAvailableTerms(termsRes.data);
-            const firstTerm = termsRes.data[0];
-            setSelectedTerm(firstTerm);
-            await fetchReport(parsedUser, firstTerm);
-          } else {
-            setError(termsRes.message || "No academic history found. Cannot display report cards.");
-            setIsLoading(false);
-          }
+          // Directly fetch the report without needing terms first
+          await fetchReport(parsedUser);
         } else {
           setAuthUser(null);
           setError("Access Denied. You must be a student to view results.");
@@ -96,12 +86,6 @@ function StudentResultsPage() {
   useEffect(() => {
     initialize();
   }, [initialize]);
-  
-  useEffect(() => {
-      if(authUser && selectedTerm) {
-          fetchReport(authUser, selectedTerm);
-      }
-  }, [selectedTerm, authUser, fetchReport]);
 
   const handlePrint = () => {
     window.print();
@@ -170,16 +154,9 @@ function StudentResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-             <div className="w-full sm:w-auto">
-                <Label htmlFor="termSelect">Select Term</Label>
-                <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoading || availableTerms.length === 0}>
-                    <SelectTrigger id="termSelect" className="max-w-xs"><SelectValue placeholder={availableTerms.length === 0 ? "No terms found" : "Select Term"} /></SelectTrigger>
-                    <SelectContent>{availableTerms.map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
-                </Select>
-            </div>
-            <Button onClick={() => authUser && selectedTerm && fetchReport(authUser, selectedTerm)} disabled={isLoading || !selectedTerm}>
+            <Button onClick={() => authUser && fetchReport(authUser)} disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
-                Fetch Report
+                Refresh Report
             </Button>
         </CardContent>
       </Card>
@@ -209,7 +186,7 @@ function StudentResultsPage() {
             <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-semibold">No Report Card Found</p>
             <p className="text-muted-foreground">
-              Your report card for the selected term is not yet published or does not exist.
+              Your report card has not been published yet or does not exist.
             </p>
           </CardContent>
         </Card>
