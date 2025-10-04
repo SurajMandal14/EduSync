@@ -186,7 +186,6 @@ export async function getStudentReportCard(
     const reportCardsCollection = db.collection<ReportCardData>('report_cards');
 
     // Find the most recently updated, PUBLISHED report card for the student.
-    // This is a simpler and more robust approach.
     const reportCardDoc = await reportCardsCollection.findOne(
       {
         studentId: studentId,
@@ -384,7 +383,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
           fa4: { tool1: null, tool2: null, tool3: null, tool4: null },
         };
         studentMarks.filter(m => m.subjectId === subject.name && m.assessmentName.startsWith('FA')).forEach(m => {
-          const [, faPeriod, tool] = m.assessmentName.match(/(FA\\d)-(Tool\\d)/) || [];
+          const [, faPeriod, tool] = m.assessmentName.match(/(FA\d)-(Tool\d)/) || [];
           if (faPeriod && tool) {
             (faEntry[faPeriod.toLowerCase() as keyof typeof faEntry] as any)[tool.toLowerCase()] = m.marksObtained;
           }
@@ -482,3 +481,5 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     return { success: false, message: 'An unexpected error occurred during bulk processing.', error: errorMessage };
   }
 }
+
+    

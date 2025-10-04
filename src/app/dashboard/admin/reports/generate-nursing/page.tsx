@@ -140,7 +140,7 @@ export default function GenerateNursingReportPage() {
         session: "2080" // This should be dynamic
       });
 
-      const marksRes = await getStudentMarksForReportCard(student._id, authUser.schoolId, student.classId, selectedTerm);
+      const marksRes = await getStudentMarksForReportCard(student._id, authUser.schoolId, student.classId);
       if (marksRes.success && marksRes.marks) {
         const formattedMarks = (studentClassDetails?.subjects || []).map((subject, index) => {
           const mark = marksRes.marks?.find(m => m.subjectId === subject.name && m.assessmentName === selectedTerm);
@@ -177,7 +177,7 @@ export default function GenerateNursingReportPage() {
     const payload: Omit<ReportCardData, '_id' | 'createdAt' | 'updatedAt' | 'isPublished'> = {
         studentId: student._id,
         schoolId: school._id,
-        reportCardTemplateKey: 'nursing_college',
+        reportCardTemplateKey: school.reportCardTemplate || 'nursing_college',
         studentInfo: {
           ...studentInfo,
           studentIdNo: student._id
@@ -309,3 +309,5 @@ export default function GenerateNursingReportPage() {
     </div>
   );
 }
+
+    
