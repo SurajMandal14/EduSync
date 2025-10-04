@@ -14,6 +14,9 @@ import CBSEStateBack from '@/components/report-cards/CBSEStateBack';
 import NursingCollegeReportCard, { type NursingStudentInfo, type NursingMarksInfo } from '@/components/report-cards/NursingCollegeReportCard';
 import { getSchoolById } from '@/app/actions/schools';
 import type { School } from '@/types/school';
+import { getAvailableTermsForStudent } from '@/app/actions/marks';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 
 function StudentResultsPage() {
   const { toast } = useToast();
@@ -23,20 +26,41 @@ function StudentResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [availableTerms, setAvailableTerms] = useState<string[]>([]);
+  const [selectedTerm, setSelectedTerm] = useState<string>('');
+
   const [showBackSide, setShowBackSide] = useState(false);
 
-  const fetchReportData = useCallback(async (user: AuthUser, school: School) => {
+  const fetchAvailableTerms = useCallback(async (user: AuthUser) => {
+    if (!user._id || !user.schoolId) return;
+    const termsResult = await getAvailableTermsForStudent(user._id, user.schoolId);
+    if (termsResult.success && termsResult.data && termsResult.data.length > 0) {
+      setAvailableTerms(termsResult.data);
+      setSelectedTerm(termsResult.data[0]); // Select the first available term by default
+    } else {
+      setAvailableTerms([]);
+      setSelectedTerm('');
+      setError("No academic history found. Cannot display report cards.");
+    }
+  }, []);
+
+  const fetchReportData = useCallback(async (user: AuthUser, term: string) => {
+    if (!user._id || !user.schoolId || !term) {
+      setReportCardData(null);
+      setError("Cannot fetch report without student details and a selected term.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     setReportCardData(null);
 
     try {
-      const result = await getStudentReportCard(user._id, user.schoolId!);
+      const result = await getStudentReportCard(user._id, user.schoolId, term);
       if (result.success && result.reportCard) {
         setReportCardData(result.reportCard);
       } else {
         setReportCardData(null);
-        setError(result.message || "Failed to load report card.");
+        setError(result.message || `Failed to load report card for ${term}.`);
       }
     } catch (e) {
       console.error("Fetch report error:", e);
@@ -46,7 +70,7 @@ function StudentResultsPage() {
       setIsLoading(false);
     }
   }, []);
-
+  
   const initialize = useCallback(async () => {
     setIsLoading(true);
     const storedUser = localStorage.getItem('loggedInUser');
@@ -55,45 +79,41 @@ function StudentResultsPage() {
         const parsedUser: AuthUser = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'student' && parsedUser._id && parsedUser.schoolId) {
           setAuthUser(parsedUser);
+          await fetchAvailableTerms(parsedUser);
           const schoolResult = await getSchoolById(parsedUser.schoolId);
           if (schoolResult.success && schoolResult.school) {
             setSchoolDetails(schoolResult.school);
-            await fetchReportData(parsedUser, schoolResult.school);
           } else {
             setError("Could not load school details. Report card cannot be displayed.");
-            setIsLoading(false);
           }
         } else {
-          setAuthUser(null);
           setError("Access Denied. You must be a student to view results.");
-          setIsLoading(false);
         }
       } catch (e) {
         setError("Session Error. Failed to load user data.");
-        setIsLoading(false);
         console.error("StudentResultsPage: Failed to parse user from localStorage:", e);
       }
     } else {
       setError("No active session. Please log in.");
-      setIsLoading(false);
     }
-  }, [fetchReportData]);
+    setIsLoading(false);
+  }, [fetchAvailableTerms]);
+
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+  
+  useEffect(() => {
+    if (authUser && selectedTerm) {
+      fetchReportData(authUser, selectedTerm);
+    }
+  }, [authUser, selectedTerm, fetchReportData]);
 
   const handlePrint = () => {
     window.print();
   };
-  
-  const handleRefresh = () => {
-    if (authUser && schoolDetails) {
-      fetchReportData(authUser, schoolDetails);
-    }
-  }
 
-  // Helper to construct props for CBSEStateFront
   const getFrontProps = () => {
     if (!reportCardData) return null;
     return {
@@ -106,17 +126,11 @@ function StudentResultsPage() {
       coMarks: reportCardData.coCurricularAssessments,
       secondLanguage: reportCardData.secondLanguage || 'Hindi',
       academicYear: "", 
-      onStudentDataChange: () => {},
-      onFaMarksChange: () => {},
-      onCoMarksChange: () => {},
-      onSecondLanguageChange: () => {},
-      onAcademicYearChange: () => {},
-      currentUserRole: "student" as UserRole,
-      editableSubjects: [],
+      onStudentDataChange: () => {}, onFaMarksChange: () => {}, onCoMarksChange: () => {}, onSecondLanguageChange: () => {}, onAcademicYearChange: () => {},
+      currentUserRole: "student" as UserRole, editableSubjects: [],
     };
   };
 
-  // Helper to construct props for CBSEStateBack
   const getBackProps = () => {
     if (!reportCardData) return null;
     return {
@@ -124,16 +138,11 @@ function StudentResultsPage() {
       attendanceData: reportCardData.attendance,
       finalOverallGradeInput: reportCardData.finalOverallGrade,
       secondLanguageSubjectName: reportCardData.secondLanguage,
-      onSaDataChange: () => {},
-      onFaTotalChange: () => {},
-      onAttendanceDataChange: () => {},
-      onFinalOverallGradeInputChange: () => {},
-      currentUserRole: "student" as UserRole,
-      editableSubjects: [],
+      onSaDataChange: () => {}, onFaTotalChange: () => {}, onAttendanceDataChange: () => {}, onFinalOverallGradeInputChange: () => {},
+      currentUserRole: "student" as UserRole, editableSubjects: [],
     };
   };
-
-  // Helper to construct props for NursingCollegeReportCard
+  
   const getNursingProps = () => {
       if (!reportCardData || !reportCardData.studentInfo) return { studentInfo: {}, marks: [] };
 
@@ -143,34 +152,29 @@ function StudentResultsPage() {
           schoolName: schoolDetails?.schoolName,
           address_school: "Mirchaiya-07, Siraha",
           examTitle: reportCardData.term ? `${reportCardData.term} Examination` : "Final Examination",
-          session: "", // Academic Year removed
+          session: reportCardData.studentInfo?.academicYear || "",
           symbolNo: reportCardData.studentInfo.symbolNo,
           studentName: reportCardData.studentInfo.studentName,
           fatherName: reportCardData.studentInfo.fatherName,
           program: reportCardData.studentInfo.class,
-          year: "Third", // Placeholder, logic to derive this may be needed
+          year: "Third",
       };
 
       const marksForNursing: NursingMarksInfo[] = (reportCardData.summativeAssessments || []).map((mark, index) => {
-          // Assuming SA1 holds the term marks for Nursing template. This may need adjustment.
           const marksObtained = mark.sa1.marks ?? 0;
-          const maxMarks = mark.sa1.maxMarks ?? 80; // Default max marks
+          const maxMarks = mark.sa1.maxMarks ?? 80;
           const passMarks = maxMarks * 0.4;
 
           return {
-              sn: index + 1,
-              subject: mark.subjectName,
-              fullMarks: maxMarks,
-              passMarks: passMarks,
-              theoryMarks: marksObtained,
-              practicalMarks: 0, // This data is not in the current model
-              totalMarks: marksObtained,
+              sn: index + 1, subject: mark.subjectName, fullMarks: maxMarks, passMarks: passMarks,
+              theoryMarks: marksObtained, practicalMarks: 0, totalMarks: marksObtained,
               remarks: marksObtained >= passMarks ? "Pass" : "Fail",
           };
-      }).filter((mark, index, self) => index === self.findIndex((t) => t.subject === mark.subject)); // Remove duplicate subjects
+      }).filter((mark, index, self) => index === self.findIndex((t) => t.subject === mark.subject));
 
       return { studentInfo: studentInfoForNursing, marks: marksForNursing };
   };
+  
 
   const frontProps = getFrontProps();
   const backProps = getBackProps();
@@ -184,53 +188,48 @@ function StudentResultsPage() {
           body * { visibility: hidden; }
           .printable-report-card, .printable-report-card * { visibility: visible !important; }
           .printable-report-card { 
-            position: absolute !important; 
-            left: 0 !important; 
-            top: 0 !important; 
-            width: 100% !important; 
-            margin: 0 !important; 
-            padding: 0 !important; 
-            transform: scale(0.95); 
-            transform-origin: top left;
+            position: absolute !important; left: 0 !important; top: 0 !important; 
+            width: 100% !important; margin: 0 !important; padding: 0 !important; 
+            transform: scale(0.95); transform-origin: top left;
           }
           .no-print { display: none !important; }
-           .page-break { page-break-after: always; }
+          .page-break { page-break-after: always; }
         }
-      `}
-      </style>
+      `}</style>
       <Card className="no-print">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
             <Award className="mr-2 h-6 w-6" /> My Exam Results
           </CardTitle>
-          <CardDescription>
-            View your academic performance and report card.
-          </CardDescription>
+          <CardDescription>View your academic performance and report card.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-            <Button onClick={handleRefresh} disabled={isLoading}>
+             <div className="w-full sm:w-auto">
+                <Label htmlFor="termSelect">Select Term</Label>
+                <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoading || availableTerms.length === 0}>
+                    <SelectTrigger id="termSelect" className="max-w-xs"><SelectValue placeholder={availableTerms.length === 0 ? "No terms found" : "Select Term"} /></SelectTrigger>
+                    <SelectContent>{availableTerms.map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
+                </Select>
+             </div>
+            <Button onClick={() => fetchReportData(authUser!, selectedTerm)} disabled={isLoading || !selectedTerm}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
-                Refresh Report
+                Fetch Report
             </Button>
         </CardContent>
       </Card>
       
       {isLoading && (
         <div className="flex justify-center items-center p-10">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="ml-4 text-lg">Loading report card...</p>
+          <Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">Loading report card...</p>
         </div>
       )}
 
       {!isLoading && error && (
          <Card className="no-print border-destructive">
             <CardHeader className="flex-row items-center gap-2">
-                <AlertTriangle className="h-6 w-6 text-destructive"/>
-                <CardTitle className="text-destructive">Report Not Available</CardTitle>
+                <AlertTriangle className="h-6 w-6 text-destructive"/><CardTitle className="text-destructive">Report Not Available</CardTitle>
             </CardHeader>
-            <CardContent>
-                <p>{error}</p>
-            </CardContent>
+            <CardContent><p>{error}</p></CardContent>
          </Card>
       )}
 
@@ -239,9 +238,7 @@ function StudentResultsPage() {
           <CardContent className="p-10 text-center">
             <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-semibold">No Report Card Found</p>
-            <p className="text-muted-foreground">
-              Your report card has not been published yet or does not exist.
-            </p>
+            <p className="text-muted-foreground">Your report card for the selected term has not been published yet or does not exist.</p>
           </CardContent>
         </Card>
       )}
@@ -257,26 +254,26 @@ function StudentResultsPage() {
              )}
             <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
           </div>
-
-          {templateKey === 'nursing_college' && (
+          
+          {templateKey === 'nursing_college' && nursingProps && (
               <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
                 <NursingCollegeReportCard {...nursingProps} />
               </div>
           )}
 
-          {templateKey !== 'nursing_college' && frontProps && backProps && (
+          {templateKey === 'cbse_state' && frontProps && backProps && (
               <>
                 <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden' : ''}`}>
                     <CBSEStateFront {...frontProps} />
                 </div>
-                
                 {showBackSide && <div className="page-break no-print"></div>}
-
                 <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden' : ''}`}>
                     <CBSEStateBack {...backProps} />
                 </div>
               </>
           )}
+
+          {!templateKey && <p>An error occurred: The report card template is not defined.</p>}
         </>
       )}
     </div>
@@ -284,3 +281,5 @@ function StudentResultsPage() {
 }
 
 export default StudentResultsPage;
+
+    
