@@ -166,19 +166,24 @@ export async function setReportCardPublicationStatus(
 export async function getStudentReportCard(
   studentId: string, 
   schoolId: string,
-  term: string,
-  publishedOnly: boolean = true
+  term: string
 ): Promise<GetStudentReportCardResult> {
   try {
     if (!ObjectId.isValid(schoolId)) { 
       return { success: false, message: 'Invalid school ID format.' };
+    }
+    if (!ObjectId.isValid(studentId)) { 
+      return { success: false, message: 'Invalid student ID format.' };
+    }
+    if (!term) {
+      return { success: false, message: 'Term is required to fetch a report card.'};
     }
     
     const { db } = await connectToDatabase();
     const schoolsCollection = db.collection('schools');
     const school = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
 
-    if (publishedOnly && school && !school.allowStudentsToViewPublishedReports) {
+    if (school && !school.allowStudentsToViewPublishedReports) {
       return { success: false, message: 'Report card viewing is currently disabled by the school administration.' };
     }
 
@@ -188,19 +193,13 @@ export async function getStudentReportCard(
       studentId: studentId, 
       schoolId: new ObjectId(schoolId),
       term: term,
+      isPublished: true,
     };
     
-    if (publishedOnly) {
-      query.isPublished = true;
-    }
-
     const reportCardDoc = await reportCardsCollection.findOne(query);
 
     if (!reportCardDoc) {
-      let message = 'No report card found for the specified criteria.';
-      if (publishedOnly) {
-        message = 'Your report card has not been published yet or is not available. Please check back later or contact your school.';
-      }
+      let message = 'No published report card found for the specified term.';
       return { success: false, message };
     }
     

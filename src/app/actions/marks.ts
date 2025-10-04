@@ -254,7 +254,7 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string)
     }
 }
 
-export async function getStudentMarksForReportCard(studentId: string, schoolId: string, classId: string, term?: string): Promise<GetMarksResult> {
+export async function getStudentMarksForReportCard(studentId: string, schoolId: string, classId: string): Promise<GetMarksResult> {
   try {
     if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
       return { success: false, message: 'Invalid Student, School, or Class ID format.', error: 'Invalid ID format.' };
@@ -269,16 +269,6 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
       classId: classId,
     };
     
-    // If a term is provided, filter marks by assessment names relevant to that term.
-    if (term) {
-        if (term === 'Annual') {
-            query.assessmentName = { $regex: /^(FA|SA)/ }; // All FA and SA marks for annual CBSE
-        } else if (['Term 1', 'Term 2', 'Term 3', 'Final Exam'].includes(term)) { // Updated this line
-             query.assessmentName = term; // For Nursing template
-        }
-    }
-
-
     const marks = await marksCollection.find(query).toArray();
 
     const marksWithStrId = marks.map(mark => ({
@@ -315,14 +305,12 @@ export async function getAvailableTermsForStudent(studentId: string, schoolId: s
 
     const { db } = await connectToDatabase();
     
-    // We look in the `report_cards` collection now instead of `marks`
     const results = await db.collection('report_cards').distinct('term', {
         studentId: studentId,
         schoolId: new ObjectId(schoolId),
-        isPublished: true // Only show terms for which a report is published
+        isPublished: true 
     });
     
-    // The result from distinct is already an array of unique strings, no further processing needed.
     const availableTerms = results.filter((term): term is string => !!term);
 
     return { success: true, data: availableTerms };
