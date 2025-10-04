@@ -173,31 +173,31 @@ export async function getStudentReportCard(
     }
 
     const { db } = await connectToDatabase();
-    const schoolsCollection = db.collection('schools');
-    const school = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
-
+    
+    // First, check if the school allows viewing reports at all
+    const school = await db.collection('schools').findOne({ _id: new ObjectId(schoolId) });
     if (!school) {
-      return { success: false, message: 'School details could not be found.' };
+        return { success: false, message: 'School details could not be found.' };
     }
-
     if (!school.allowStudentsToViewPublishedReports) {
       return { success: false, message: 'Report card viewing is currently disabled by the school administration.' };
     }
 
     const reportCardsCollection = db.collection<ReportCardData>('report_cards');
 
+    // Find the most recently updated, PUBLISHED report card for the student.
+    // This is a simpler and more robust approach.
     const reportCardDoc = await reportCardsCollection.findOne(
       {
         studentId: studentId,
         schoolId: new ObjectId(schoolId),
         isPublished: true,
-        reportCardTemplateKey: school.reportCardTemplate,
       },
       { sort: { updatedAt: -1 } } // Get the most recently updated one
     );
 
     if (!reportCardDoc) {
-      return { success: false, message: 'No published report card found for your account that matches the current school configuration.' };
+      return { success: false, message: 'No published report card found for your account.' };
     }
 
     const reportCard: ReportCardData = {
@@ -336,6 +336,16 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
   try {
     const { db } = await connectToDatabase();
 
+    const schoolDetailsRes = await getSchoolById(schoolId);
+     if (!schoolDetailsRes.success || !schoolDetailsRes.school) {
+        return { success: false, message: "Could not load school configuration to determine report template." };
+    }
+    const reportCardTemplateKey = schoolDetailsRes.school.reportCardTemplate;
+    if (!reportCardTemplateKey || reportCardTemplateKey === 'none') {
+        return { success: false, message: "No report card template is configured for this school." };
+    }
+
+
     const classDetailsRes = await getClassDetailsById(classId, schoolId);
     if (!classDetailsRes.success || !classDetailsRes.classDetails) {
       return { success: false, message: classDetailsRes.message || "Could not find class details." };
@@ -354,7 +364,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     for (const student of students) {
       if (!student._id || !student.name) continue;
       
-      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, classId, 'Annual');
+      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, classId);
       if (!studentMarksRes.success) {
         console.warn(`Skipping student ${student.name} due to mark fetching error: ${studentMarksRes.message}`);
         continue;
@@ -419,7 +429,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
       const reportPayload: Omit<ReportCardData, '_id'> = {
         studentId: student._id.toString(),
         schoolId: new ObjectId(schoolId),
-        reportCardTemplateKey: 'cbse_state',
+        reportCardTemplateKey: reportCardTemplateKey,
         studentInfo: {
           studentName: student.name,
           fatherName: student.fatherName,
