@@ -13,11 +13,9 @@ import CBSEStateFront, {
     type SubjectFAData as FrontSubjectFAData, 
 } from '@/components/report-cards/CBSEStateFront';
 import CBSEStateBack from '@/components/report-cards/CBSEStateBack';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from '@/components/ui/label';
 import { getAvailableTermsForStudent } from '@/app/actions/marks';
 
-export default function StudentResultsPage() {
+function StudentResultsPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [reportCardData, setReportCardData] = useState<ReportCardData | null>(null);
@@ -29,14 +27,56 @@ export default function StudentResultsPage() {
 
   const [showBackSide, setShowBackSide] = useState(false);
 
-  // Effect to get the authenticated user first
-  useEffect(() => {
+  const fetchReport = useCallback(async (user: AuthUser, term: string) => {
+    if (!user || !term) {
+      setReportCardData(null);
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    setReportCardData(null);
+
+    try {
+      const result = await getStudentReportCard(user._id, user.schoolId!);
+      if (result.success && result.reportCard) {
+        if (result.reportCard.term === term) {
+          setReportCardData(result.reportCard);
+        } else {
+            setReportCardData(null);
+            setError("A report card was found, but not for the selected term. It may not be published yet.");
+        }
+      } else {
+        setReportCardData(null);
+        setError(result.message || "Failed to load report card.");
+      }
+    } catch (e) {
+      console.error("Fetch report error:", e);
+      setError("An unexpected error occurred while fetching the report card.");
+      setReportCardData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const initialize = useCallback(async () => {
+    setIsLoading(true);
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
       try {
         const parsedUser: AuthUser = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'student' && parsedUser._id && parsedUser.schoolId) {
           setAuthUser(parsedUser);
+          const termsRes = await getAvailableTermsForStudent(parsedUser._id, parsedUser.schoolId);
+          if (termsRes.success && termsRes.data && termsRes.data.length > 0) {
+            setAvailableTerms(termsRes.data);
+            const firstTerm = termsRes.data[0];
+            setSelectedTerm(firstTerm);
+            await fetchReport(parsedUser, firstTerm);
+          } else {
+            setError(termsRes.message || "No academic history found. Cannot display report cards.");
+            setIsLoading(false);
+          }
         } else {
           setAuthUser(null);
           setError("Access Denied. You must be a student to view results.");
@@ -51,79 +91,20 @@ export default function StudentResultsPage() {
       setError("No active session. Please log in.");
       setIsLoading(false);
     }
-  }, []);
-
-  // Effect to fetch available terms once the user is authenticated
-  useEffect(() => {
-    if (!authUser) return;
-
-    async function fetchAvailableYears() {
-      setIsLoading(true);
-      const res = await getAvailableTermsForStudent(authUser._id!, authUser.schoolId!);
-      if (res.success && res.data && res.data.length > 0) {
-        setAvailableTerms(res.data);
-        setSelectedTerm(res.data[0]); // Auto-select the first available term
-      } else {
-        setError("No academic history found. Cannot display report cards.");
-        setIsLoading(false);
-      }
-    }
-    
-    fetchAvailableYears();
-  }, [authUser]);
-
-  // Effect to fetch the report card when user or selections change
-  const fetchReport = useCallback(async () => {
-    if (!authUser || !selectedTerm) {
-      setReportCardData(null);
-      if (authUser && availableTerms.length > 0 && !selectedTerm) {
-        setError("Please select a term to view the report.");
-      }
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    setReportCardData(null);
-
-    try {
-      const result = await getStudentReportCard(authUser._id, authUser.schoolId!, true); 
-      if (result.success && result.reportCard) {
-        // Filter the report card based on the selected term from client side
-        if (result.reportCard.term === selectedTerm) {
-          setReportCardData(result.reportCard);
-        } else {
-          const newResult = await getStudentReportCard(authUser._id, authUser.schoolId!, true);
-          if (newResult.success && newResult.reportCard && newResult.reportCard.term === selectedTerm) {
-             setReportCardData(newResult.reportCard);
-          } else {
-            setReportCardData(null);
-            setError(newResult.message || "Failed to load report card for the selected term.");
-          }
-        }
-      } else {
-        setReportCardData(null);
-        setError(result.message || "Failed to load report card for the selected term.");
-      }
-    } catch (e) {
-      console.error("Fetch report error:", e);
-      setError("An unexpected error occurred while fetching the report card.");
-      setReportCardData(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [authUser, selectedTerm, availableTerms]);
+  }, [fetchReport]);
 
   useEffect(() => {
-    if(authUser && selectedTerm) {
-      fetchReport();
-    }
-  }, [authUser, selectedTerm, fetchReport]);
+    initialize();
+  }, [initialize]);
+  
+  useEffect(() => {
+      if(authUser && selectedTerm) {
+          fetchReport(authUser, selectedTerm);
+      }
+  }, [selectedTerm, authUser, fetchReport]);
 
   const handlePrint = () => {
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    window.print();
   };
 
   const frontProps = reportCardData ? {
@@ -160,7 +141,7 @@ export default function StudentResultsPage() {
 
   return (
     <div className="space-y-6">
-       <style jsx global>{\`
+       <style jsx global>{`
         @media print {
           body * { visibility: hidden; }
           .printable-report-card, .printable-report-card * { visibility: visible !important; }
@@ -177,7 +158,7 @@ export default function StudentResultsPage() {
           .no-print { display: none !important; }
            .page-break { page-break-after: always; }
         }
-      \`}
+      `}
       </style>
       <Card className="no-print">
         <CardHeader>
@@ -196,7 +177,7 @@ export default function StudentResultsPage() {
                     <SelectContent>{availableTerms.map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
                 </Select>
             </div>
-            <Button onClick={fetchReport} disabled={isLoading || !selectedTerm}>
+            <Button onClick={() => authUser && selectedTerm && fetchReport(authUser, selectedTerm)} disabled={isLoading || !selectedTerm}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
                 Fetch Report
             </Button>
@@ -257,3 +238,5 @@ export default function StudentResultsPage() {
     </div>
   );
 }
+
+export default StudentResultsPage;
