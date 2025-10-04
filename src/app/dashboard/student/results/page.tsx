@@ -9,32 +9,23 @@ import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole } from '@/types/user';
 import { getStudentReportCard } from '@/app/actions/reports';
 import type { ReportCardData } from '@/types/report';
-import CBSEStateFront, { 
-    type SubjectFAData as FrontSubjectFAData, 
-} from '@/components/report-cards/CBSEStateFront';
+import CBSEStateFront, { type SubjectFAData as FrontSubjectFAData } from '@/components/report-cards/CBSEStateFront';
 import CBSEStateBack from '@/components/report-cards/CBSEStateBack';
-import { getAvailableTermsForStudent } from '@/app/actions/marks';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from '@/components/ui/label';
+import NursingCollegeReportCard, { type NursingStudentInfo, type NursingMarksInfo } from '@/components/report-cards/NursingCollegeReportCard';
+import { getSchoolById } from '@/app/actions/schools';
+import type { School } from '@/types/school';
 
 function StudentResultsPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [reportCardData, setReportCardData] = useState<ReportCardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const [availableTerms, setAvailableTerms] = useState<string[]>([]);
-  const [selectedTerm, setSelectedTerm] = useState<string>("");
 
   const [showBackSide, setShowBackSide] = useState(false);
 
-  const fetchReport = useCallback(async (user: AuthUser) => {
-    if (!user) {
-      setReportCardData(null);
-      return;
-    }
-    
+  const fetchReportData = useCallback(async (user: AuthUser, school: School) => {
     setIsLoading(true);
     setError(null);
     setReportCardData(null);
@@ -42,7 +33,6 @@ function StudentResultsPage() {
     try {
       const result = await getStudentReportCard(user._id, user.schoolId!);
       if (result.success && result.reportCard) {
-        // Since term is removed, we just load the first/only report card found.
         setReportCardData(result.reportCard);
       } else {
         setReportCardData(null);
@@ -65,8 +55,14 @@ function StudentResultsPage() {
         const parsedUser: AuthUser = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'student' && parsedUser._id && parsedUser.schoolId) {
           setAuthUser(parsedUser);
-          // Directly fetch the report without needing terms first
-          await fetchReport(parsedUser);
+          const schoolResult = await getSchoolById(parsedUser.schoolId);
+          if (schoolResult.success && schoolResult.school) {
+            setSchoolDetails(schoolResult.school);
+            await fetchReportData(parsedUser, schoolResult.school);
+          } else {
+            setError("Could not load school details. Report card cannot be displayed.");
+            setIsLoading(false);
+          }
         } else {
           setAuthUser(null);
           setError("Access Denied. You must be a student to view results.");
@@ -81,7 +77,7 @@ function StudentResultsPage() {
       setError("No active session. Please log in.");
       setIsLoading(false);
     }
-  }, [fetchReport]);
+  }, [fetchReportData]);
 
   useEffect(() => {
     initialize();
@@ -90,38 +86,96 @@ function StudentResultsPage() {
   const handlePrint = () => {
     window.print();
   };
+  
+  const handleRefresh = () => {
+    if (authUser && schoolDetails) {
+      fetchReportData(authUser, schoolDetails);
+    }
+  }
 
-  const frontProps = reportCardData ? {
-    studentData: reportCardData.studentInfo,
-    academicSubjects: (reportCardData.formativeAssessments || []).map(fa => ({ name: fa.subjectName, teacherId: undefined, teacherName: undefined })),
-    faMarks: (reportCardData.formativeAssessments || []).reduce((acc, curr) => {
-      acc[curr.subjectName] = { fa1: curr.fa1, fa2: curr.fa2, fa3: curr.fa3, fa4: curr.fa4 };
-      return acc;
-    }, {} as Record<string, FrontSubjectFAData>),
-    coMarks: reportCardData.coCurricularAssessments,
-    secondLanguage: reportCardData.secondLanguage || 'Hindi', 
-    academicYear: "", 
-    onStudentDataChange: () => {},
-    onFaMarksChange: () => {},
-    onCoMarksChange: () => {},
-    onSecondLanguageChange: () => {},
-    onAcademicYearChange: () => {},
-    currentUserRole: "student" as UserRole,
-    editableSubjects: [],
-  } : null;
+  // Helper to construct props for CBSEStateFront
+  const getFrontProps = () => {
+    if (!reportCardData) return null;
+    return {
+      studentData: reportCardData.studentInfo,
+      academicSubjects: (reportCardData.formativeAssessments || []).map(fa => ({ name: fa.subjectName, teacherId: undefined, teacherName: undefined })),
+      faMarks: (reportCardData.formativeAssessments || []).reduce((acc, curr) => {
+        acc[curr.subjectName] = { fa1: curr.fa1, fa2: curr.fa2, fa3: curr.fa3, fa4: curr.fa4 };
+        return acc;
+      }, {} as Record<string, FrontSubjectFAData>),
+      coMarks: reportCardData.coCurricularAssessments,
+      secondLanguage: reportCardData.secondLanguage || 'Hindi',
+      academicYear: "", 
+      onStudentDataChange: () => {},
+      onFaMarksChange: () => {},
+      onCoMarksChange: () => {},
+      onSecondLanguageChange: () => {},
+      onAcademicYearChange: () => {},
+      currentUserRole: "student" as UserRole,
+      editableSubjects: [],
+    };
+  };
 
-  const backProps = reportCardData ? {
-    saData: reportCardData.summativeAssessments,
-    attendanceData: reportCardData.attendance,
-    finalOverallGradeInput: reportCardData.finalOverallGrade,
-    secondLanguageSubjectName: reportCardData.secondLanguage,
-    onSaDataChange: () => {},
-    onFaTotalChange: () => {},
-    onAttendanceDataChange: () => {},
-    onFinalOverallGradeInputChange: () => {},
-    currentUserRole: "student" as UserRole,
-    editableSubjects: [],
-  } : null;
+  // Helper to construct props for CBSEStateBack
+  const getBackProps = () => {
+    if (!reportCardData) return null;
+    return {
+      saData: reportCardData.summativeAssessments,
+      attendanceData: reportCardData.attendance,
+      finalOverallGradeInput: reportCardData.finalOverallGrade,
+      secondLanguageSubjectName: reportCardData.secondLanguage,
+      onSaDataChange: () => {},
+      onFaTotalChange: () => {},
+      onAttendanceDataChange: () => {},
+      onFinalOverallGradeInputChange: () => {},
+      currentUserRole: "student" as UserRole,
+      editableSubjects: [],
+    };
+  };
+
+  // Helper to construct props for NursingCollegeReportCard
+  const getNursingProps = () => {
+      if (!reportCardData || !reportCardData.studentInfo) return { studentInfo: {}, marks: [] };
+
+      const studentInfoForNursing: NursingStudentInfo = {
+          regdNo: (schoolDetails as any)?.regNo || "70044/066/067",
+          email: (schoolDetails as any)?.email || "mirchaiyanursingcampussiraha@gmail.com",
+          schoolName: schoolDetails?.schoolName,
+          address_school: "Mirchaiya-07, Siraha",
+          examTitle: reportCardData.term ? `${reportCardData.term} Examination` : "Final Examination",
+          session: "", // Academic Year removed
+          symbolNo: reportCardData.studentInfo.symbolNo,
+          studentName: reportCardData.studentInfo.studentName,
+          fatherName: reportCardData.studentInfo.fatherName,
+          program: reportCardData.studentInfo.class,
+          year: "Third", // Placeholder, logic to derive this may be needed
+      };
+
+      const marksForNursing: NursingMarksInfo[] = (reportCardData.summativeAssessments || []).map((mark, index) => {
+          // Assuming SA1 holds the term marks for Nursing template. This may need adjustment.
+          const marksObtained = mark.sa1.marks ?? 0;
+          const maxMarks = mark.sa1.maxMarks ?? 80; // Default max marks
+          const passMarks = maxMarks * 0.4;
+
+          return {
+              sn: index + 1,
+              subject: mark.subjectName,
+              fullMarks: maxMarks,
+              passMarks: passMarks,
+              theoryMarks: marksObtained,
+              practicalMarks: 0, // This data is not in the current model
+              totalMarks: marksObtained,
+              remarks: marksObtained >= passMarks ? "Pass" : "Fail",
+          };
+      }).filter((mark, index, self) => index === self.findIndex((t) => t.subject === mark.subject)); // Remove duplicate subjects
+
+      return { studentInfo: studentInfoForNursing, marks: marksForNursing };
+  };
+
+  const frontProps = getFrontProps();
+  const backProps = getBackProps();
+  const nursingProps = getNursingProps();
+  const templateKey = reportCardData?.reportCardTemplateKey;
 
   return (
     <div className="space-y-6">
@@ -154,7 +208,7 @@ function StudentResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-            <Button onClick={() => authUser && fetchReport(authUser)} disabled={isLoading}>
+            <Button onClick={handleRefresh} disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
                 Refresh Report
             </Button>
@@ -192,24 +246,37 @@ function StudentResultsPage() {
         </Card>
       )}
 
-      {!isLoading && reportCardData && frontProps && backProps && (
+      {!isLoading && reportCardData && (
         <>
           <div className="flex justify-end gap-2 no-print mb-4">
-             <Button onClick={() => setShowBackSide(prev => !prev)} variant="outline">
-                {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                {showBackSide ? "View Front" : "View Back"}
-            </Button>
+             {templateKey === 'cbse_state' && (
+                <Button onClick={() => setShowBackSide(prev => !prev)} variant="outline">
+                    {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                    {showBackSide ? "View Front" : "View Back"}
+                </Button>
+             )}
             <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
           </div>
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden' : ''}`}>
-            <CBSEStateFront {...frontProps} />
-          </div>
-          
-          {showBackSide && <div className="page-break no-print"></div>}
 
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden' : ''}`}>
-            <CBSEStateBack {...backProps} />
-          </div>
+          {templateKey === 'nursing_college' && (
+              <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
+                <NursingCollegeReportCard {...nursingProps} />
+              </div>
+          )}
+
+          {templateKey !== 'nursing_college' && frontProps && backProps && (
+              <>
+                <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden' : ''}`}>
+                    <CBSEStateFront {...frontProps} />
+                </div>
+                
+                {showBackSide && <div className="page-break no-print"></div>}
+
+                <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden' : ''}`}>
+                    <CBSEStateBack {...backProps} />
+                </div>
+              </>
+          )}
         </>
       )}
     </div>
