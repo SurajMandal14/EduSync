@@ -165,8 +165,7 @@ export async function setReportCardPublicationStatus(
 
 export async function getStudentReportCard(
   studentId: string, 
-  schoolId: string, 
-  term?: string, 
+  schoolId: string,
   publishedOnly?: boolean 
 ): Promise<GetStudentReportCardResult> {
   try {
@@ -189,10 +188,6 @@ export async function getStudentReportCard(
       schoolId: new ObjectId(schoolId),
     };
     
-    if (term) {
-        query.term = term;
-    }
-
     if (publishedOnly) {
       query.isPublished = true;
     }
@@ -204,7 +199,7 @@ export async function getStudentReportCard(
     if (!reportCardDoc) {
       let message = 'No report card found for the specified criteria.';
       if (publishedOnly) {
-        message = 'Your report card for this academic term has not been published yet or is not available. Please check back later or contact your school.';
+        message = 'Your report card has not been published yet or is not available. Please check back later or contact your school.';
       }
       return { success: false, message };
     }
@@ -364,7 +359,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     for (const student of students) {
       if (!student._id || !student.name) continue;
       
-      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, classId, 'Annual');
+      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, classId);
       if (!studentMarksRes.success) {
         console.warn(`Skipping student ${student.name} due to mark fetching error: ${studentMarksRes.message}`);
         continue;

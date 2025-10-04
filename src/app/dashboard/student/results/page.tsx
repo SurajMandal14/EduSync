@@ -76,6 +76,9 @@ export default function StudentResultsPage() {
   const fetchReport = useCallback(async () => {
     if (!authUser || !selectedTerm) {
       setReportCardData(null);
+      if (authUser && availableTerms.length > 0 && !selectedTerm) {
+        setError("Please select a term to view the report.");
+      }
       return;
     }
     
@@ -84,9 +87,20 @@ export default function StudentResultsPage() {
     setReportCardData(null);
 
     try {
-      const result = await getStudentReportCard(authUser._id, authUser.schoolId!, selectedTerm, true); 
+      const result = await getStudentReportCard(authUser._id, authUser.schoolId!, true); 
       if (result.success && result.reportCard) {
-        setReportCardData(result.reportCard);
+        // Filter the report card based on the selected term from client side
+        if (result.reportCard.term === selectedTerm) {
+          setReportCardData(result.reportCard);
+        } else {
+          const newResult = await getStudentReportCard(authUser._id, authUser.schoolId!, true);
+          if (newResult.success && newResult.reportCard && newResult.reportCard.term === selectedTerm) {
+             setReportCardData(newResult.reportCard);
+          } else {
+            setReportCardData(null);
+            setError(newResult.message || "Failed to load report card for the selected term.");
+          }
+        }
       } else {
         setReportCardData(null);
         setError(result.message || "Failed to load report card for the selected term.");
@@ -98,7 +112,7 @@ export default function StudentResultsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [authUser, selectedTerm]);
+  }, [authUser, selectedTerm, availableTerms]);
 
   useEffect(() => {
     if(authUser && selectedTerm) {
@@ -146,7 +160,7 @@ export default function StudentResultsPage() {
 
   return (
     <div className="space-y-6">
-       <style jsx global>{`
+       <style jsx global>{\`
         @media print {
           body * { visibility: hidden; }
           .printable-report-card, .printable-report-card * { visibility: visible !important; }
@@ -163,7 +177,7 @@ export default function StudentResultsPage() {
           .no-print { display: none !important; }
            .page-break { page-break-after: always; }
         }
-      `}
+      \`}
       </style>
       <Card className="no-print">
         <CardHeader>
