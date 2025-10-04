@@ -315,27 +315,17 @@ export async function getAvailableTermsForStudent(studentId: string, schoolId: s
 
     const { db } = await connectToDatabase();
     
-    const results = await db.collection('marks').distinct('assessmentName', {
-        studentId: new ObjectId(studentId),
-        schoolId: new ObjectId(schoolId)
+    // We look in the `report_cards` collection now instead of `marks`
+    const results = await db.collection('report_cards').distinct('term', {
+        studentId: studentId,
+        schoolId: new ObjectId(schoolId),
+        isPublished: true // Only show terms for which a report is published
     });
     
-    const availableData: string[] = [];
-    
-    results.forEach(assessment => {
-      let term: string | null = null;
-      if (assessment && (assessment.startsWith('FA') || assessment.startsWith('SA'))) {
-        term = 'Annual'; // Group all CBSE marks under one term
-      } else if (assessment && ['Term 1', 'Term 2', 'Term 3', 'Final Exam'].includes(assessment)) {
-        term = assessment;
-      }
+    // The result from distinct is already an array of unique strings, no further processing needed.
+    const availableTerms = results.filter((term): term is string => !!term);
 
-      if (term && !availableData.includes(term)) {
-        availableData.push(term);
-      }
-    });
-
-    return { success: true, data: availableData };
+    return { success: true, data: availableTerms };
 
   } catch (error) {
     console.error('Error fetching available terms:', error);

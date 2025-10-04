@@ -30,15 +30,18 @@ function StudentResultsPage() {
   const [showBackSide, setShowBackSide] = useState(false);
 
   const fetchAvailableTerms = useCallback(async (user: AuthUser) => {
-    if (!user._id || !user.schoolId) return;
+    if (!user._id || !user.schoolId) {
+      setError("Cannot fetch terms without student details.");
+      return;
+    }
     const termsResult = await getAvailableTermsForStudent(user._id, user.schoolId);
     if (termsResult.success && termsResult.data && termsResult.data.length > 0) {
       setAvailableTerms(termsResult.data);
-      setSelectedTerm(termsResult.data[0]);
+      setSelectedTerm(termsResult.data[0]); // Auto-select the first available term
     } else {
       setAvailableTerms([]);
       setSelectedTerm('');
-      setError("No academic history found. Cannot display report cards.");
+      setError("No published report cards found for your account.");
     }
   }, []);
 
@@ -53,7 +56,8 @@ function StudentResultsPage() {
     setError(null);
     setReportCardData(null);
     try {
-      const result = await getStudentReportCard(user._id, user.schoolId, term, true);
+      // Pass `publishedOnly: true` which is the default but being explicit here
+      const result = await getStudentReportCard(user._id, user.schoolId, term, true); 
       if (result.success && result.reportCard) {
         setReportCardData(result.reportCard);
       } else {
@@ -71,6 +75,7 @@ function StudentResultsPage() {
 
   const initialize = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
       try {
@@ -104,10 +109,13 @@ function StudentResultsPage() {
   useEffect(() => {
     if (authUser && selectedTerm) {
       fetchReportData(authUser, selectedTerm);
-    } else if (authUser && availableTerms.length === 0) {
-      setIsLoading(false);
+    } else if (authUser && availableTerms.length > 0 && !selectedTerm) {
+      // If terms are available but none is selected, select the first one.
+      setSelectedTerm(availableTerms[0]);
+    } else if (!isLoading && authUser && availableTerms.length === 0) {
+      // This case is handled by the initial error message from fetchAvailableTerms
     }
-  }, [authUser, selectedTerm, availableTerms, fetchReportData]);
+  }, [authUser, selectedTerm, availableTerms, fetchReportData, isLoading]);
 
   const handlePrint = () => window.print();
 
@@ -122,7 +130,7 @@ function StudentResultsPage() {
       }, {} as Record<string, FrontSubjectFAData>),
       coMarks: reportCardData.coCurricularAssessments,
       secondLanguage: reportCardData.secondLanguage || 'Hindi',
-      academicYear: reportCardData.studentInfo?.academicYear || "",
+      academicYear: reportCardData.term || "", // Using term as academic year as it was removed
       onStudentDataChange: () => {}, onFaMarksChange: () => {}, onCoMarksChange: () => {}, onSecondLanguageChange: () => {}, onAcademicYearChange: () => {},
       currentUserRole: "student" as UserRole, editableSubjects: [],
     };
@@ -149,7 +157,7 @@ function StudentResultsPage() {
           schoolName: schoolDetails?.schoolName,
           address_school: "Mirchaiya-07, Siraha",
           examTitle: reportCardData.term ? `${reportCardData.term} Examination` : "Final Examination",
-          session: reportCardData.studentInfo?.academicYear || reportCardData.term, // Fallback to term
+          session: reportCardData.term, // Using term for session
           symbolNo: reportCardData.studentInfo.symbolNo,
           studentName: reportCardData.studentInfo.studentName,
           fatherName: reportCardData.studentInfo.fatherName,
@@ -173,7 +181,7 @@ function StudentResultsPage() {
   };
 
   const renderReportCard = () => {
-    if (isLoading) {
+    if (isLoading && !reportCardData) { // Show loader only during initial fetch for a term
       return (
         <div className="flex justify-center items-center p-10">
           <Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">Loading report card...</p>
@@ -181,7 +189,7 @@ function StudentResultsPage() {
       );
     }
 
-    if (error) {
+    if (error && !reportCardData) {
       return (
          <Card className="no-print border-destructive">
             <CardHeader className="flex-row items-center gap-2">
@@ -193,15 +201,7 @@ function StudentResultsPage() {
     }
     
     if (!reportCardData) {
-      return (
-        <Card className="no-print">
-          <CardContent className="p-10 text-center">
-            <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-semibold">No Report Card Found</p>
-            <p className="text-muted-foreground">Your report card for the selected term has not been published yet or does not exist.</p>
-          </CardContent>
-        </Card>
-      );
+      return null; // Return null if no data and no error, maybe after switching terms
     }
 
     const templateKey = reportCardData.reportCardTemplateKey;
@@ -271,14 +271,10 @@ function StudentResultsPage() {
              <div className="w-full sm:w-auto">
                 <Label htmlFor="termSelect">Select Term</Label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoading || availableTerms.length === 0}>
-                    <SelectTrigger id="termSelect" className="max-w-xs"><SelectValue placeholder={availableTerms.length === 0 ? "No terms found" : "Select Term"} /></SelectTrigger>
+                    <SelectTrigger id="termSelect" className="max-w-xs"><SelectValue placeholder={isLoading ? "Loading..." : "No terms found"} /></SelectTrigger>
                     <SelectContent>{availableTerms.map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
                 </Select>
              </div>
-            <Button onClick={() => authUser && selectedTerm && fetchReportData(authUser, selectedTerm)} disabled={isLoading || !selectedTerm}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
-                Fetch Report
-            </Button>
         </CardContent>
       </Card>
       
