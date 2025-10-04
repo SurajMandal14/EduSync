@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getDailyAttendanceForSchool } from "@/app/actions/attendance";
 import type { AttendanceRecord, AuthUser } from "@/types/attendance";
 import type { User as AppUser } from "@/types/user";
-import type { School, TermFee } from "@/types/school";
+import type { School, TermFee, ReportCardTemplateKey } from "@/types/school";
 import type { FeePayment } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
 import { getReportCardsForClass, generateAndPublishReportsForClass } from "@/app/actions/reports"; // Added new actions
@@ -99,6 +99,7 @@ export default function AdminReportsPage() {
   const [isLoadingBulkReports, setIsLoadingBulkReports] = useState(false);
   const [isBulkPublishing, setIsBulkPublishing] = useState(false);
 
+  const [schoolTemplate, setSchoolTemplate] = useState<ReportCardTemplateKey | null>(null);
 
   useEffect(() => {
     setReportDate(new Date());
@@ -371,9 +372,11 @@ export default function AdminReportsPage() {
 
         if (schoolRes.success && schoolRes.school) {
           setSchoolDetails(schoolRes.school);
+          setSchoolTemplate(schoolRes.school.reportCardTemplate || 'none');
         } else {
           toast({ variant: "destructive", title: "School Info Error", description: schoolRes.message || "Could not load school details for reports."});
           setSchoolDetails(null);
+          setSchoolTemplate(null);
         }
 
         if (paymentsResult.success && paymentsResult.payments) {
@@ -586,25 +589,34 @@ export default function AdminReportsPage() {
       <Card>
         <CardHeader>
             <CardTitle className="text-lg">Report Card Generation</CardTitle>
-            <CardDescription>Select a template to start generating student report cards.</CardDescription>
+            <CardDescription>Select the template configured for your school to generate student report cards.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <Link href="/dashboard/admin/reports/generate-cbse-state" passHref>
-                 <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
-                    <FileText className="h-6 w-6 mb-1"/>
-                    <span>CBSE State Template</span>
-                 </Button>
-            </Link>
-             <Link href="/dashboard/admin/reports/generate-nursing" passHref>
-                 <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
-                    <FileText className="h-6 w-6 mb-1"/>
-                    <span>Nursing College</span>
-                 </Button>
-            </Link>
-            <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center" disabled>
-                <FileText className="h-6 w-6 mb-1 text-muted-foreground"/>
-                <span className="text-muted-foreground">More Templates (Soon)</span>
-            </Button>
+            {isLoading ? (
+                <div className="col-span-full text-center p-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+                    <p>Loading school configuration...</p>
+                </div>
+            ) : schoolTemplate === 'cbse_state' ? (
+                 <Link href="/dashboard/admin/reports/generate-cbse-state" passHref>
+                     <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                        <FileText className="h-6 w-6 mb-1"/>
+                        <span>CBSE State Template</span>
+                     </Button>
+                </Link>
+            ) : schoolTemplate === 'nursing_college' ? (
+                <Link href="/dashboard/admin/reports/generate-nursing" passHref>
+                     <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                        <FileText className="h-6 w-6 mb-1"/>
+                        <span>Nursing College</span>
+                     </Button>
+                </Link>
+            ) : (
+                <div className="col-span-full text-center p-4 text-muted-foreground">
+                    <Info className="h-6 w-6 mx-auto mb-2"/>
+                    No specific report card template is configured for your school. Please contact a Super Admin.
+                </div>
+            )}
         </CardContent>
       </Card>
 
