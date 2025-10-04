@@ -29,7 +29,7 @@ import { getClassDetailsById } from '@/app/actions/classes';
 import { getSchoolById } from '@/app/actions/schools';
 import type { SchoolClassSubject } from '@/types/classes';
 import type { School } from '@/types/school';
-import { getStudentMarksForReportCard, getAvailableYearsAndTermsForStudent, type AvailableYearsAndTerms } from '@/app/actions/marks'; 
+import { getStudentMarksForReportCard, getAvailableTermsForStudent } from '@/app/actions/marks'; 
 import type { MarkEntry as MarkEntryType } from '@/types/marks'; 
 
 
@@ -115,8 +115,7 @@ export default function GenerateCBSEStateReportPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   
   const [registrationNoInput, setRegistrationNoInput] = useState<string>(""); 
-  const [availableYearsAndTerms, setAvailableYearsAndTerms] = useState<AvailableYearsAndTerms | null>(null);
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
+  const [availableTerms, setAvailableTerms] = useState<string[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>("");
 
   const [loadedStudent, setLoadedStudent] = useState<StudentDetailsForReportCard | null>(null);
@@ -172,8 +171,7 @@ export default function GenerateCBSEStateReportPage() {
     setFinalOverallGradeInput(null);
     setLoadedReportId(null);
     setLoadedReportIsPublished(null);
-    setAvailableYearsAndTerms(null);
-    setSelectedAcademicYear("");
+    setAvailableTerms([]);
     setSelectedTerm("");
   };
 
@@ -203,16 +201,16 @@ export default function GenerateCBSEStateReportPage() {
       setLoadedStudent(currentStudent);
 
       // Fetch available academic years and terms for this student
-      const yearsAndTermsRes = await getAvailableYearsAndTermsForStudent(currentStudent._id, authUser.schoolId.toString());
-      if(yearsAndTermsRes.success && yearsAndTermsRes.data && Object.keys(yearsAndTermsRes.data).length > 0) {
-        setAvailableYearsAndTerms(yearsAndTermsRes.data);
-        const latestYear = Object.keys(yearsAndTermsRes.data).sort().reverse()[0];
-        setSelectedAcademicYear(latestYear);
-        if (yearsAndTermsRes.data[latestYear]?.length > 0) {
-          setSelectedTerm(yearsAndTermsRes.data[latestYear][0]);
+      const yearsAndTermsRes = await getAvailableTermsForStudent(currentStudent._id, authUser.schoolId.toString());
+      if(yearsAndTermsRes.success && yearsAndTermsRes.data && yearsAndTermsRes.data.length > 0) {
+        setAvailableTerms(yearsAndTermsRes.data);
+        if (yearsAndTermsRes.data.length > 0) {
+          setSelectedTerm(yearsAndTermsRes.data[0]); // Select first available term by default
         }
       } else {
-        toast({variant: "info", title: "No Marks Data", description: "No existing marks data found for this student to select from."})
+        toast({variant: "info", title: "No Marks Data", description: "No existing marks data found for this student to select from. You can create a new 'Annual' report."})
+        setAvailableTerms(["Annual"]);
+        setSelectedTerm("Annual");
       }
 
       const schoolRes = await getSchoolById(currentStudent.schoolId!);
@@ -237,7 +235,7 @@ export default function GenerateCBSEStateReportPage() {
   
   // This effect will trigger when a student is loaded and the year/term changes
   const loadReportForSelectedYearAndTerm = useCallback(async () => {
-    if (!loadedStudent || !selectedAcademicYear || !selectedTerm) {
+    if (!loadedStudent || !selectedTerm) {
         return;
     }
     setIsLoadingStudentAndClassData(true);
@@ -276,11 +274,11 @@ export default function GenerateCBSEStateReportPage() {
             aadharNo: loadedStudent.aadharNo || '',
           });
 
-        const existingReportRes = await getStudentReportCard(loadedStudent._id, loadedStudent.schoolId!, selectedAcademicYear, selectedTerm, false);
+        const existingReportRes = await getStudentReportCard(loadedStudent._id, loadedStudent.schoolId!, selectedTerm, false);
 
         if (existingReportRes.success && existingReportRes.reportCard) {
             const report = existingReportRes.reportCard;
-            toast({title: "Existing Report Loaded", description: `Report for ${report.studentInfo.studentName} (${report.academicYear} - ${report.term}) loaded.`});
+            toast({title: "Existing Report Loaded", description: `Report for ${report.studentInfo.studentName} (${report.term}) loaded.`});
             
             setStudentData(report.studentInfo);
             setFrontSecondLanguage(report.secondLanguage || 'Hindi');
@@ -300,7 +298,7 @@ export default function GenerateCBSEStateReportPage() {
             setLoadedReportIsPublished(report.isPublished || false);
         } else {
              toast({title: "No Saved Report", description: "Fetching individual marks for new report."});
-             const marksResult = await getStudentMarksForReportCard(loadedStudent._id, loadedStudent.schoolId!, selectedAcademicYear, loadedStudent.classId!, selectedTerm);
+             const marksResult = await getStudentMarksForReportCard(loadedStudent._id, loadedStudent.schoolId!, loadedStudent.classId!, selectedTerm);
              // ... populate from marks logic as before ...
         }
 
@@ -310,13 +308,13 @@ export default function GenerateCBSEStateReportPage() {
     } finally {
         setIsLoadingStudentAndClassData(false);
     }
-  }, [loadedStudent, selectedAcademicYear, selectedTerm, loadedSchool, authUser, toast, loadedClassSubjects, defaultSaMaxMarks]);
+  }, [loadedStudent, selectedTerm, loadedSchool, authUser, toast, loadedClassSubjects, defaultSaMaxMarks]);
 
   useEffect(() => {
-    if(selectedAcademicYear && selectedTerm) {
+    if(selectedTerm) {
         loadReportForSelectedYearAndTerm();
     }
-  }, [selectedAcademicYear, selectedTerm, loadReportForSelectedYearAndTerm]);
+  }, [selectedTerm, loadReportForSelectedYearAndTerm]);
 
   const handleStudentDataChange = (field: keyof FrontStudentData, value: string) => {
     if (isFieldDisabledForRole()) return; 
@@ -395,6 +393,7 @@ export default function GenerateCBSEStateReportPage() {
   };
   
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
+    const currentUserRole = authUser?.role as UserRole;
     if (currentUserRole === 'student') return true;
     if (currentUserRole === 'admin' && !!loadedStudent) return true; 
     if (currentUserRole === 'teacher') {
@@ -418,10 +417,15 @@ export default function GenerateCBSEStateReportPage() {
       toast({ variant: "destructive", title: "Error", description: "Admin/Teacher session not found." });
       return;
     }
-    if (!loadedStudent || !loadedStudent._id || !selectedAcademicYear || !selectedTerm) {
-      toast({ variant: "destructive", title: "Missing Data", description: "Please load student and select year/term first." });
+    if (!loadedStudent || !loadedStudent._id || !selectedTerm) {
+      toast({ variant: "destructive", title: "Missing Data", description: "Please load student and select a term first." });
       return;
     }
+    if (!loadedSchool || !loadedSchool.reportCardTemplate) {
+        toast({ variant: "destructive", title: "Configuration Error", description: "School report card template is not configured." });
+        return;
+    }
+
     setIsSaving(true);
     const formativeAssessmentsForStorage: FormativeAssessmentEntryForStorage[] = Object.entries(faMarks)
       .map(([subjectName, marksData]) => ({ subjectName, ...marksData }));
@@ -441,8 +445,7 @@ export default function GenerateCBSEStateReportPage() {
     const reportPayload: Omit<ReportCardData, '_id' | 'createdAt' | 'updatedAt' | 'isPublished'> = {
       studentId: loadedStudent._id, 
       schoolId: (loadedSchool?._id || authUser.schoolId).toString(),
-      academicYear: selectedAcademicYear, 
-      reportCardTemplateKey: 'cbse_state', 
+      reportCardTemplateKey: loadedSchool.reportCardTemplate,
       studentInfo: studentData,
       formativeAssessments: formativeAssessmentsForStorage, 
       coCurricularAssessments: coMarks,
@@ -525,24 +528,17 @@ export default function GenerateCBSEStateReportPage() {
               </div>
             }
             <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || isSaving || isPublishing || !registrationNoInput.trim() || !authUser || !authUser.schoolId}>
-                {isLoadingStudentAndClassData && !availableYearsAndTerms ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>}
+                {isLoadingStudentAndClassData && !availableTerms ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>}
                 Load Student
             </Button>
           </div>
-          {availableYearsAndTerms && (
+          {availableTerms.length > 0 && (
              <div className="flex flex-col sm:flex-row gap-2 items-end">
                 <div className="w-full sm:w-auto">
-                    <Label htmlFor="academicYearSelect">Academic Year</Label>
-                    <Select value={selectedAcademicYear} onValueChange={setSelectedAcademicYear} disabled={isLoadingStudentAndClassData}>
-                        <SelectTrigger id="academicYearSelect"><SelectValue placeholder="Select Year" /></SelectTrigger>
-                        <SelectContent>{Object.keys(availableYearsAndTerms).map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                <div className="w-full sm:w-auto">
-                    <Label htmlFor="termSelect">Term / Exam</Label>
-                    <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoadingStudentAndClassData || !selectedAcademicYear}>
+                    <Label htmlFor="termSelect">Select Term</Label>
+                    <Select value={selectedTerm} onValueChange={setSelectedTerm} disabled={isLoadingStudentAndClassData}>
                         <SelectTrigger id="termSelect"><SelectValue placeholder="Select Term" /></SelectTrigger>
-                        <SelectContent>{(availableYearsAndTerms[selectedAcademicYear] || []).map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
+                        <SelectContent>{(availableTerms).map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
              </div>
@@ -591,7 +587,7 @@ export default function GenerateCBSEStateReportPage() {
               faMarks={faMarks} onFaMarksChange={handleFaMarksChange} 
               coMarks={coMarks} onCoMarksChange={handleCoMarksChange} 
               secondLanguage={frontSecondLanguage} onSecondLanguageChange={(val) => { if(!isFieldDisabledForRole()) setFrontSecondLanguage(val)}}
-              academicYear={selectedAcademicYear} onAcademicYearChange={(val) => {if(!isFieldDisabledForRole()) setSelectedAcademicYear(val)}}
+              academicYear={selectedTerm} onAcademicYearChange={(val) => {if(!isFieldDisabledForRole()) setSelectedTerm(val)}}
               currentUserRole={currentUserRole}
               editableSubjects={teacherEditableSubjects}
             />

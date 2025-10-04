@@ -191,6 +191,7 @@ export async function getStudentReportCard(
         studentId: studentId,
         schoolId: new ObjectId(schoolId),
         isPublished: true,
+        reportCardTemplateKey: school.reportCardTemplate,
       },
       { sort: { updatedAt: -1 } } // Get the most recently updated one
     );
@@ -353,7 +354,7 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     for (const student of students) {
       if (!student._id || !student.name) continue;
       
-      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, classId);
+      const studentMarksRes = await getStudentMarksForReportCard(student._id.toString(), schoolId, classId, 'Annual');
       if (!studentMarksRes.success) {
         console.warn(`Skipping student ${student.name} due to mark fetching error: ${studentMarksRes.message}`);
         continue;
@@ -471,5 +472,3 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     return { success: false, message: 'An unexpected error occurred during bulk processing.', error: errorMessage };
   }
 }
-
-    

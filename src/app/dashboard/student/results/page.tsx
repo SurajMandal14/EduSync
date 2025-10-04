@@ -37,17 +37,19 @@ function StudentResultsPage() {
     setSchoolDetails(null);
 
     try {
+      // Pass the school's configured template key to the backend
+      const schoolResult = await getSchoolById(user.schoolId);
+      if (!schoolResult.success || !schoolResult.school) {
+        setError(schoolResult.message || "Could not load your school's configuration.");
+        setIsLoading(false);
+        return;
+      }
+      setSchoolDetails(schoolResult.school);
+      
       const result = await getStudentReportCard(user._id, user.schoolId);
       
       if (result.success && result.reportCard) {
         setReportCardData(result.reportCard);
-        // We need school details for the Nursing template, so let's get them from the report's schoolId
-        const schoolResult = await getSchoolById(result.reportCard.schoolId.toString());
-        if (schoolResult.success && schoolResult.school) {
-          setSchoolDetails(schoolResult.school);
-        } else {
-          toast({ variant: 'warning', title: 'School Info Missing', description: 'Could not load school details for the report card header.' });
-        }
       } else {
         setError(result.message || `Failed to load your report card.`);
         setReportCardData(null);
@@ -87,18 +89,18 @@ function StudentResultsPage() {
   const handlePrint = () => window.print();
 
   const renderReportCard = () => {
-    if (!reportCardData) return null;
+    if (!reportCardData || !schoolDetails) return null;
 
     const templateKey = reportCardData.reportCardTemplateKey;
 
-    if (templateKey === 'nursing_college' && schoolDetails) {
+    if (templateKey === 'nursing_college') {
       const studentInfoForNursing: NursingStudentInfo = {
-        regdNo: (schoolDetails as any)?.regNo || "70044/066/067",
+        regdNo: (schoolDetails as any)?.regdNo || "70044/066/067", 
         email: (schoolDetails as any)?.email || "mirchaiyanursingcampussiraha@gmail.com",
         schoolName: schoolDetails?.schoolName,
-        address_school: "Mirchaiya-07, Siraha",
-        examTitle: reportCardData.term ? `${reportCardData.term} Examination` : "Final Examination",
-        session: reportCardData.studentInfo?.academicYear || reportCardData.term, // Fallback to term
+        address_school: (schoolDetails as any)?.address || "Mirchaiya-07, Siraha",
+        examTitle: reportCardData.studentInfo?.examTitle || `${reportCardData.term} Examination`,
+        session: reportCardData.studentInfo?.session || reportCardData.term, // Fallback to term
         symbolNo: reportCardData.studentInfo.symbolNo,
         studentName: reportCardData.studentInfo.studentName,
         fatherName: reportCardData.studentInfo.fatherName,
