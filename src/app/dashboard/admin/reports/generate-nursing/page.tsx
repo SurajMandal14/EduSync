@@ -15,7 +15,7 @@ import { getSchoolById } from '@/app/actions/schools';
 import type { School } from '@/types/school';
 import type { SchoolClass } from '@/types/classes';
 import { getClassDetailsById } from '@/app/actions/classes';
-import { getStudentMarksForReportCard, getAvailableTermsForStudent } from '@/app/actions/marks';
+import { getStudentMarksForReportCard } from '@/app/actions/marks';
 import NursingCollegeReportCard, { type NursingStudentInfo as ReportStudentInfo, type NursingMarksInfo } from '@/components/report-cards/NursingCollegeReportCard';
 import { saveReportCard, setReportCardPublicationStatus } from '@/app/actions/reports';
 import type { ReportCardData } from '@/types/report';
@@ -36,7 +36,7 @@ export default function GenerateNursingReportPage() {
   const [studentClass, setStudentClass] = useState<SchoolClass | null>(null);
   const [registrationNoInput, setRegistrationNoInput] = useState<string>("");
   const [selectedTerm, setSelectedTerm] = useState<string>("Term 2");
-  const [availableTerms, setAvailableTerms] = useState<string[]>([]);
+  const [availableTerms, setAvailableTerms] = useState<string[]>(Object.keys(TERMINAL_EXAMS));
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -73,8 +73,7 @@ export default function GenerateNursingReportPage() {
     setStudentClass(null);
     setStudentInfo({});
     setMarks([]);
-    setAvailableTerms([]);
-    setSelectedTerm("");
+    setSelectedTerm(Object.keys(TERMINAL_EXAMS)[0]);
     setLoadedReportId(null);
     setIsPublished(null);
 
@@ -86,19 +85,6 @@ export default function GenerateNursingReportPage() {
     }
     const studentData = studentRes.student;
     setStudent(studentData);
-
-    const termsRes = await getAvailableTermsForStudent(studentData._id, authUser.schoolId);
-    if (termsRes.success && termsRes.data) {
-        setAvailableTerms(termsRes.data.length > 0 ? termsRes.data : Object.keys(TERMINAL_EXAMS));
-        if (termsRes.data.length > 0) {
-            setSelectedTerm(termsRes.data[0]);
-        } else {
-            setSelectedTerm(Object.keys(TERMINAL_EXAMS)[0]);
-        }
-    } else {
-        setAvailableTerms(Object.keys(TERMINAL_EXAMS));
-        setSelectedTerm(Object.keys(TERMINAL_EXAMS)[0]);
-    }
     
     let studentClassDetails: SchoolClass | null = null;
     if (studentData.classId) {
@@ -165,7 +151,7 @@ export default function GenerateNursingReportPage() {
 
   useEffect(() => {
     loadDataForTerm();
-  }, [selectedTerm, loadDataForTerm]);
+  }, [selectedTerm, student, loadDataForTerm]);
 
 
   const handleSave = async () => {
@@ -309,5 +295,3 @@ export default function GenerateNursingReportPage() {
     </div>
   );
 }
-
-    

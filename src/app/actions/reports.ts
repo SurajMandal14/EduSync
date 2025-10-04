@@ -481,5 +481,3 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     return { success: false, message: 'An unexpected error occurred during bulk processing.', error: errorMessage };
   }
 }
-
-    
