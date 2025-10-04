@@ -191,7 +191,6 @@ export async function getStudentReportCard(
         studentId: studentId,
         schoolId: new ObjectId(schoolId),
         isPublished: true,
-        reportCardTemplateKey: school.reportCardTemplate, // Ensure we only fetch the correct template
       },
       { sort: { updatedAt: -1 } } // Get the most recently updated one
     );
@@ -472,3 +471,5 @@ export async function generateAndPublishReportsForClass(schoolId: string, classI
     return { success: false, message: 'An unexpected error occurred during bulk processing.', error: errorMessage };
   }
 }
+
+    
