@@ -25,10 +25,8 @@ function StudentResultsPage() {
   const [reportCardData, setReportCardData] = useState<ReportCardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [availableTerms, setAvailableTerms] = useState<string[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<string>('');
-
   const [showBackSide, setShowBackSide] = useState(false);
 
   const fetchAvailableTerms = useCallback(async (user: AuthUser) => {
@@ -36,7 +34,7 @@ function StudentResultsPage() {
     const termsResult = await getAvailableTermsForStudent(user._id, user.schoolId);
     if (termsResult.success && termsResult.data && termsResult.data.length > 0) {
       setAvailableTerms(termsResult.data);
-      setSelectedTerm(termsResult.data[0]); // Select the first available term by default
+      setSelectedTerm(termsResult.data[0]);
     } else {
       setAvailableTerms([]);
       setSelectedTerm('');
@@ -48,14 +46,14 @@ function StudentResultsPage() {
     if (!user._id || !user.schoolId || !term) {
       setReportCardData(null);
       setError("Cannot fetch report without student details and a selected term.");
+      setIsLoading(false);
       return;
     }
     setIsLoading(true);
     setError(null);
     setReportCardData(null);
-
     try {
-      const result = await getStudentReportCard(user._id, user.schoolId, term);
+      const result = await getStudentReportCard(user._id, user.schoolId, term, true);
       if (result.success && result.reportCard) {
         setReportCardData(result.reportCard);
       } else {
@@ -70,7 +68,7 @@ function StudentResultsPage() {
       setIsLoading(false);
     }
   }, []);
-  
+
   const initialize = useCallback(async () => {
     setIsLoading(true);
     const storedUser = localStorage.getItem('loggedInUser');
@@ -99,23 +97,22 @@ function StudentResultsPage() {
     setIsLoading(false);
   }, [fetchAvailableTerms]);
 
-
   useEffect(() => {
     initialize();
   }, [initialize]);
-  
+
   useEffect(() => {
     if (authUser && selectedTerm) {
       fetchReportData(authUser, selectedTerm);
+    } else if (authUser && availableTerms.length === 0) {
+      setIsLoading(false);
     }
-  }, [authUser, selectedTerm, fetchReportData]);
+  }, [authUser, selectedTerm, availableTerms, fetchReportData]);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   const getFrontProps = () => {
-    if (!reportCardData) return null;
+    if (!reportCardData || reportCardData.reportCardTemplateKey !== 'cbse_state') return null;
     return {
       studentData: reportCardData.studentInfo,
       academicSubjects: (reportCardData.formativeAssessments || []).map(fa => ({ name: fa.subjectName, teacherId: undefined, teacherName: undefined })),
@@ -125,14 +122,14 @@ function StudentResultsPage() {
       }, {} as Record<string, FrontSubjectFAData>),
       coMarks: reportCardData.coCurricularAssessments,
       secondLanguage: reportCardData.secondLanguage || 'Hindi',
-      academicYear: "", 
+      academicYear: reportCardData.studentInfo?.academicYear || "",
       onStudentDataChange: () => {}, onFaMarksChange: () => {}, onCoMarksChange: () => {}, onSecondLanguageChange: () => {}, onAcademicYearChange: () => {},
       currentUserRole: "student" as UserRole, editableSubjects: [],
     };
   };
 
   const getBackProps = () => {
-    if (!reportCardData) return null;
+    if (!reportCardData || reportCardData.reportCardTemplateKey !== 'cbse_state') return null;
     return {
       saData: reportCardData.summativeAssessments,
       attendanceData: reportCardData.attendance,
@@ -144,7 +141,7 @@ function StudentResultsPage() {
   };
   
   const getNursingProps = () => {
-      if (!reportCardData || !reportCardData.studentInfo) return { studentInfo: {}, marks: [] };
+      if (!reportCardData || reportCardData.reportCardTemplateKey !== 'nursing_college' || !reportCardData.studentInfo) return null;
 
       const studentInfoForNursing: NursingStudentInfo = {
           regdNo: (schoolDetails as any)?.regNo || "70044/066/067",
@@ -152,7 +149,7 @@ function StudentResultsPage() {
           schoolName: schoolDetails?.schoolName,
           address_school: "Mirchaiya-07, Siraha",
           examTitle: reportCardData.term ? `${reportCardData.term} Examination` : "Final Examination",
-          session: reportCardData.studentInfo?.academicYear || "",
+          session: reportCardData.studentInfo?.academicYear || reportCardData.term, // Fallback to term
           symbolNo: reportCardData.studentInfo.symbolNo,
           studentName: reportCardData.studentInfo.studentName,
           fatherName: reportCardData.studentInfo.fatherName,
@@ -174,13 +171,80 @@ function StudentResultsPage() {
 
       return { studentInfo: studentInfoForNursing, marks: marksForNursing };
   };
+
+  const renderReportCard = () => {
+    if (isLoading) {
+      return (
+        <div className="flex justify-center items-center p-10">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">Loading report card...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+         <Card className="no-print border-destructive">
+            <CardHeader className="flex-row items-center gap-2">
+                <AlertTriangle className="h-6 w-6 text-destructive"/><CardTitle className="text-destructive">Report Not Available</CardTitle>
+            </CardHeader>
+            <CardContent><p>{error}</p></CardContent>
+         </Card>
+      );
+    }
+    
+    if (!reportCardData) {
+      return (
+        <Card className="no-print">
+          <CardContent className="p-10 text-center">
+            <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-semibold">No Report Card Found</p>
+            <p className="text-muted-foreground">Your report card for the selected term has not been published yet or does not exist.</p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const templateKey = reportCardData.reportCardTemplateKey;
+
+    if (templateKey === 'nursing_college') {
+      const nursingProps = getNursingProps();
+      if (!nursingProps) return <p>Error processing nursing report data.</p>;
+      return (
+        <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
+          <NursingCollegeReportCard {...nursingProps} />
+        </div>
+      );
+    }
+
+    if (templateKey === 'cbse_state') {
+      const frontProps = getFrontProps();
+      const backProps = getBackProps();
+      if (!frontProps || !backProps) return <p>Error processing CBSE report data.</p>;
+      return (
+        <>
+          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden' : ''}`}>
+            <CBSEStateFront {...frontProps} />
+          </div>
+          {showBackSide && <div className="page-break no-print"></div>}
+          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden' : ''}`}>
+            <CBSEStateBack {...backProps} />
+          </div>
+        </>
+      );
+    }
+
+    return (
+      <Card className="no-print border-destructive">
+        <CardHeader>
+          <CardTitle>Unknown Report Card Format</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>The school has selected a report card format that is not recognized by the system.</p>
+        </CardContent>
+      </Card>
+    );
+  };
   
-
-  const frontProps = getFrontProps();
-  const backProps = getBackProps();
-  const nursingProps = getNursingProps();
-  const templateKey = reportCardData?.reportCardTemplateKey;
-
   return (
     <div className="space-y-6">
        <style jsx global>{`
@@ -211,75 +275,28 @@ function StudentResultsPage() {
                     <SelectContent>{availableTerms.map(term => <SelectItem key={term} value={term}>{term}</SelectItem>)}</SelectContent>
                 </Select>
              </div>
-            <Button onClick={() => fetchReportData(authUser!, selectedTerm)} disabled={isLoading || !selectedTerm}>
+            <Button onClick={() => authUser && selectedTerm && fetchReportData(authUser, selectedTerm)} disabled={isLoading || !selectedTerm}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
                 Fetch Report
             </Button>
         </CardContent>
       </Card>
       
-      {isLoading && (
-        <div className="flex justify-center items-center p-10">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">Loading report card...</p>
+      {!isLoading && reportCardData && (
+        <div className="flex justify-end gap-2 no-print mb-4">
+            {reportCardData.reportCardTemplateKey === 'cbse_state' && (
+              <Button onClick={() => setShowBackSide(prev => !prev)} variant="outline">
+                  {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                  {showBackSide ? "View Front" : "View Back"}
+              </Button>
+            )}
+          <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
         </div>
       )}
-
-      {!isLoading && error && (
-         <Card className="no-print border-destructive">
-            <CardHeader className="flex-row items-center gap-2">
-                <AlertTriangle className="h-6 w-6 text-destructive"/><CardTitle className="text-destructive">Report Not Available</CardTitle>
-            </CardHeader>
-            <CardContent><p>{error}</p></CardContent>
-         </Card>
-      )}
-
-      {!isLoading && !error && !reportCardData && (
-        <Card className="no-print">
-          <CardContent className="p-10 text-center">
-            <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-semibold">No Report Card Found</p>
-            <p className="text-muted-foreground">Your report card for the selected term has not been published yet or does not exist.</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isLoading && reportCardData && (
-        <>
-          <div className="flex justify-end gap-2 no-print mb-4">
-             {templateKey === 'cbse_state' && (
-                <Button onClick={() => setShowBackSide(prev => !prev)} variant="outline">
-                    {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                    {showBackSide ? "View Front" : "View Back"}
-                </Button>
-             )}
-            <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
-          </div>
-          
-          {templateKey === 'nursing_college' && nursingProps && (
-              <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
-                <NursingCollegeReportCard {...nursingProps} />
-              </div>
-          )}
-
-          {templateKey === 'cbse_state' && frontProps && backProps && (
-              <>
-                <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden' : ''}`}>
-                    <CBSEStateFront {...frontProps} />
-                </div>
-                {showBackSide && <div className="page-break no-print"></div>}
-                <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden' : ''}`}>
-                    <CBSEStateBack {...backProps} />
-                </div>
-              </>
-          )}
-
-          {!templateKey && <p>An error occurred: The report card template is not defined.</p>}
-        </>
-      )}
+      
+      {renderReportCard()}
     </div>
   );
 }
 
 export default StudentResultsPage;
-
-    

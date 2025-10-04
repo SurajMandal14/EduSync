@@ -166,7 +166,8 @@ export async function setReportCardPublicationStatus(
 export async function getStudentReportCard(
   studentId: string, 
   schoolId: string,
-  publishedOnly?: boolean 
+  term: string,
+  publishedOnly: boolean = true
 ): Promise<GetStudentReportCardResult> {
   try {
     if (!ObjectId.isValid(schoolId)) { 
@@ -186,15 +187,14 @@ export async function getStudentReportCard(
     const query: any = {
       studentId: studentId, 
       schoolId: new ObjectId(schoolId),
+      term: term,
     };
     
     if (publishedOnly) {
       query.isPublished = true;
     }
 
-    const reportCardDoc = await reportCardsCollection.findOne(query, {
-      sort: { updatedAt: -1 }, 
-    });
+    const reportCardDoc = await reportCardsCollection.findOne(query);
 
     if (!reportCardDoc) {
       let message = 'No report card found for the specified criteria.';
